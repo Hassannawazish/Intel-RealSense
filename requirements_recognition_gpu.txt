@@ -1,0 +1,7 @@
+numpy
+opencv-python
+pyrealsense2
+onnxruntime-gpu
+facial_recognition
+mediapipe
+ultralytics

@@ -1,0 +1,10 @@
+numpy
+opencv-python
+pyrealsense2
+torch
+torchvision
+torchaudio
+onnxruntime
+facial_recognition
+mediapipe
+ultralytics

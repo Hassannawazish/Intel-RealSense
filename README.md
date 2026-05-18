@@ -1,28 +1,25 @@
-# Intel-RealSense
-
 # Camera Object Recognition
 
-This project uses an Intel RealSense camera and YOLOv5 for live object detection.
+This project uses an Intel RealSense camera with YOLOv5 for live object detection, person recognition, and basic anti-spoofing against faces shown on device screens.
 
 ## Files
 
 ### `test_camera.py`
 
-This is a simple camera test script for the Intel RealSense D415.
+This script tests the Intel RealSense RGB stream only.
 
 What it does:
-- Starts the RealSense pipeline
-- Opens the RGB color stream at `640x480` and `30 FPS`
-- Reads frames from the camera
-- Displays the raw color video in an OpenCV window
-- Exits when you press `q`
+- starts the RealSense pipeline
+- opens the color stream at `640x480` and `30 FPS`
+- displays the raw camera feed
+- exits when you press `q`
 
-Why it is useful:
-- Confirms that `pyrealsense2` is installed correctly
-- Confirms that the RealSense camera is connected and readable from Python
-- Helps isolate camera problems before adding YOLO inference
+Use it to confirm:
+- the RealSense camera is connected
+- `pyrealsense2` is installed correctly
+- Python can read frames from the device
 
-Run it with:
+Run:
 
 ```powershell
 python .\test_camera.py
@@ -30,46 +27,136 @@ python .\test_camera.py
 
 ### `main.py`
 
-This is the main live object detection script.
+This is the basic YOLOv5 object detection script.
 
 What it does:
-- Sets a couple of environment variables to reduce OpenMP and NumExpr startup issues
-- Detects whether PyTorch can use `cuda` or must run on `cpu`
-- Loads the local YOLOv5 model from the `./yolov5` folder
-- Starts the RealSense RGB color stream
-- Reads each camera frame
-- Runs YOLOv5 inference on each frame
-- Draws detection boxes and labels on the frame
-- Displays the annotated live video
-- Exits when you press `q`
+- opens the RealSense RGB stream
+- loads the local YOLOv5 model from `./yolov5`
+- runs object detection on each frame
+- draws bounding boxes and labels
+- shows the annotated live video
 
-Run it with:
+Run:
 
 ```powershell
 python .\main.py
 ```
 
-## Script Difference
+### `recognition.py`
 
-`test_camera.py` only checks the camera stream.
+This is the CPU-oriented recognition pipeline.
 
-`main.py` uses the same RealSense stream, but adds YOLOv5 object detection on top of it.
+What it does:
+- opens the RealSense RGB stream
+- runs YOLOv5 object detection
+- runs face recognition using the known images in `known_faces/hassan`
+- labels Hassan as `Hassan`
+- labels other people as `Unknown Person`
+- detects faces shown inside screen-like devices such as phones or laptops
+- blocks those spoofed matches and labels them as `Threat`
+
+Run:
+
+```powershell
+python .\recognition.py
+```
+
+### `recognition_gpu.py`
+
+This is the GPU-oriented recognition pipeline.
+
+What it does:
+- requires CUDA-enabled PyTorch
+- runs YOLOv5 on GPU
+- uses a lighter YOLO model and smaller input size for better frame rate
+- reduces face recognition frequency to improve live performance
+- keeps the same naming behavior as `recognition.py`
+- keeps the same spoof blocking logic and labels screen-based attacks as `Threat`
+
+Run:
+
+```powershell
+python .\recognition_gpu.py
+```
+
+## Known Faces
+
+The current setup expects Hassan's reference images here:
+
+`known_faces/hassan`
+
+The scripts load all supported images in that folder:
+- `.jpg`
+- `.jpeg`
+- `.png`
+- `.bmp`
+
+Use clear front-facing images for better recognition accuracy.
+
+## Anti-Spoofing Behavior
+
+Both `recognition.py` and `recognition_gpu.py` include a basic anti-spoofing rule.
+
+If a recognized face appears inside a detected screen-like device, such as:
+- `cell phone`
+- `laptop`
+- `tv`
+- `monitor`
+- `tablet`
+
+then the match is blocked and labeled as:
+
+`Threat`
+
+This is a practical screen-spoof heuristic, not full liveness detection.
 
 ## Requirements
 
-You need these main Python packages:
+There are now two dedicated requirements files:
+
+### CPU recognition
+
+Use:
 
 ```powershell
-python -m pip install opencv-python numpy torch pyrealsense2
+python -m pip install -r .\requirements_recognition_cpu.txt
+python -m pip install -r .\yolov5\requirements.txt
+facial_recognition setup
 ```
 
-You also need:
-- an Intel RealSense camera connected
-- the local `yolov5` folder present in this project
-- the YOLOv5 weights file or the ability for YOLOv5 to load the default model
+### GPU recognition
+
+Use:
+
+```powershell
+python -m pip install -r .\requirements_recognition_gpu.txt
+python -m pip install -r .\yolov5\requirements.txt
+facial_recognition setup
+```
+
+## Recommended Environments
+
+### CPU / general recognition
+
+A Python environment with:
+- `torch`
+- `onnxruntime`
+- `facial_recognition`
+- `mediapipe`
+- `pyrealsense2`
+
+### GPU recognition
+
+A Python environment with:
+- CUDA-enabled `torch`
+- `onnxruntime-gpu` if you want the face-recognition backend to try GPU too
+- the rest of the same packages as the CPU setup
+
+If `recognition_gpu.py` says CUDA is unavailable, your PyTorch install is CPU-only and must be replaced with a CUDA-enabled build.
 
 ## Notes
 
-- If `test_camera.py` works but `main.py` is slow, that usually means YOLO inference is running on CPU.
-- If `main.py` prints `Using torch device: cpu`, then your current PyTorch install does not have CUDA support enabled.
-- Close RealSense Viewer before running these scripts, because it can occupy the camera stream.
+- Close RealSense Viewer before running these scripts, otherwise the camera stream may already be occupied.
+- `recognition_gpu.py` improves YOLO performance, but face recognition may still run on CPU if ONNX Runtime GPU support is not active.
+- If `main.py` or `recognition.py` feels slow, that is expected on CPU-heavy environments.
+- If you want better spoof resistance, the next step would be to use RealSense depth data for liveness checks instead of only 2D screen overlap.
