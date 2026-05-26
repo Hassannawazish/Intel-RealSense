@@ -26,8 +26,7 @@ except ModuleNotFoundError as exc:
 
 
 ROOT = Path(__file__).resolve().parent
-KNOWN_FACE_DIR = ROOT / "known_faces" / "hassan"
-KNOWN_FACE_NAME = "Hassan"
+KNOWN_FACES_ROOT = ROOT / "known_faces"
 FACE_MATCH_THRESHOLD = 0.3
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp"}
 SCREEN_DEVICE_CLASSES = {"cell phone", "tv", "laptop", "tablet", "monitor"}
@@ -37,32 +36,57 @@ FACE_RECOGNITION_EVERY_N_FRAMES = 5
 FACE_RECOGNITION_SCALE = 0.5
 
 
-def prepare_known_faces(image_dir):
-    """Reset the face database and add Hassan images from the configured folder."""
-    if not image_dir.exists():
+def format_person_name(folder_name):
+    """Convert a folder name like 'rana' or 'abdul_rahman' into a display label."""
+    return folder_name.replace("_", " ").replace("-", " ").title()
+
+
+def prepare_known_faces(known_faces_root):
+    """Reset the face database and add every known person found under known_faces/."""
+    if not known_faces_root.exists():
         raise FileNotFoundError(
-            f"Known face folder not found: {image_dir}\n"
-            "Create the folder and place clear front-facing photos inside it so recognition can identify Hassan."
+            f"Known faces root folder not found: {known_faces_root}\n"
+            "Create person subfolders inside known_faces and place clear front-facing photos in each one."
         )
 
-    image_paths = sorted(
-        path for path in image_dir.iterdir() if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
-    )
-    if not image_paths:
+    person_dirs = sorted(path for path in known_faces_root.iterdir() if path.is_dir())
+    if not person_dirs:
         raise FileNotFoundError(
-            f"No supported images were found in {image_dir}.\n"
-            "Add JPG, JPEG, PNG, or BMP images for Hassan."
+            f"No person folders were found in {known_faces_root}.\n"
+            "Add folders like known_faces/hassan, known_faces/rana, known_faces/khan, or known_faces/fernando."
         )
 
     remove_face_database()
-    for image_path in image_paths:
-        add_person(KNOWN_FACE_NAME, str(image_path))
+    loaded_people = {}
+    skipped_dirs = []
 
-    print(f"Loaded {len(image_paths)} reference image(s) for {KNOWN_FACE_NAME}.")
+    for person_dir in person_dirs:
+        image_paths = sorted(
+            path for path in person_dir.iterdir() if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
+        )
+        if not image_paths:
+            skipped_dirs.append(person_dir.name)
+            continue
+
+        person_name = format_person_name(person_dir.name)
+        for image_path in image_paths:
+            add_person(person_name, str(image_path))
+        loaded_people[person_name] = len(image_paths)
+
+    if not loaded_people:
+        raise FileNotFoundError(
+            f"No supported images were found in any subfolder of {known_faces_root}.\n"
+            "Add JPG, JPEG, PNG, or BMP images for each person you want to recognize."
+        )
+
+    for person_name, image_count in loaded_people.items():
+        print(f"Loaded {image_count} reference image(s) for {person_name}.")
+    if skipped_dirs:
+        print(f"Skipped empty known face folders: {', '.join(skipped_dirs)}")
 
 
 def recognize_faces(frame):
-    """Return recognized face names and locations for the current frame."""
+    """Return recognized face metadata and locations for the current frame."""
     if FACE_RECOGNITION_SCALE != 1.0:
         face_frame = cv2.resize(frame, (0, 0), fx=FACE_RECOGNITION_SCALE, fy=FACE_RECOGNITION_SCALE)
     else:
@@ -82,10 +106,12 @@ def recognize_faces(frame):
         name = result["name"]
         if name == "Unknown":
             name = "Unknown Person"
+        score = float(result.get("score", 0.0))
 
         recognized_faces.append(
             {
                 "name": name,
+                "score": score,
                 "box": (left, top, right, bottom),
                 "is_spoof": False,
             }
@@ -133,18 +159,27 @@ def flag_spoof_faces(recognized_faces, screen_boxes):
                 break
 
 
-def get_person_label(person_box, recognized_faces):
-    """Attach a face label to a YOLO person box, blocking screen-based spoof attempts."""
+def get_person_match(person_box, recognized_faces):
+    """Return the matched face metadata for a YOLO person box."""
     x1, y1, x2, y2 = person_box
     for face in recognized_faces:
         left, top, right, bottom = face["box"]
         center_x = (left + right) // 2
         center_y = (top + bottom) // 2
         if x1 <= center_x <= x2 and y1 <= center_y <= y2:
-            if face["is_spoof"]:
-                return "Threat"
-            return face["name"]
-    return "Unknown Person"
+            return face
+    return None
+
+
+def format_person_label(face):
+    """Build the on-screen label for a recognized face match."""
+    if face is None:
+        return "Unknown Person"
+    if face["is_spoof"]:
+        return "Threat"
+    if face["name"] == "Unknown Person":
+        return face["name"]
+    return f'{face["name"]}: {face["score"]:.2f}'
 
 
 def screen_has_spoof_face(screen_box, recognized_faces):
@@ -180,7 +215,7 @@ else:
             "but facial recognition may still run on CPU."
         )
 
-prepare_known_faces(KNOWN_FACE_DIR)
+prepare_known_faces(KNOWN_FACES_ROOT)
 
 # Load the local YOLOv5 model from the cloned repository.
 model = torch.hub.load("./yolov5", YOLO_MODEL_NAME, source="local")
@@ -225,8 +260,9 @@ try:
             current_box = (x1, y1, x2, y2)
 
             if class_name == "person":
-                label = get_person_label(current_box, recognized_faces)
-                if label == KNOWN_FACE_NAME:
+                face_match = get_person_match(current_box, recognized_faces)
+                label = format_person_label(face_match)
+                if label not in {"Unknown Person", "Threat"}:
                     color = (0, 200, 0)
                 elif label == "Threat":
                     color = (0, 0, 255)

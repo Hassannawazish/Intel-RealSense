@@ -49,8 +49,8 @@ This is the CPU-oriented recognition pipeline.
 What it does:
 - opens the RealSense RGB stream
 - runs YOLOv5 object detection
-- runs face recognition using the known images in `known_faces/hassan`
-- labels Hassan as `Hassan`
+- runs face recognition using all person folders inside `known_faces`
+- labels each matched person using their folder name
 - labels other people as `Unknown Person`
 - detects faces shown inside screen-like devices such as phones or laptops
 - blocks those spoofed matches and labels them as `Threat`
@@ -70,7 +70,7 @@ What it does:
 - runs YOLOv5 on GPU
 - uses a lighter YOLO model and smaller input size for better frame rate
 - reduces face recognition frequency to improve live performance
-- keeps the same naming behavior as `recognition.py`
+- keeps the same multi-person naming behavior as `recognition.py`
 - keeps the same spoof blocking logic and labels screen-based attacks as `Threat`
 
 Run:
@@ -81,17 +81,31 @@ python .\recognition_gpu.py
 
 ## Known Faces
 
-The current setup expects Hassan's reference images here:
+The scripts now load every person folder inside `known_faces`.
 
-`known_faces/hassan`
+Example structure:
 
-The scripts load all supported images in that folder:
+```text
+known_faces/
+  hassan/
+  rana/
+  khan/
+  fernando/
+```
+
+Each person folder can contain supported images:
 - `.jpg`
 - `.jpeg`
 - `.png`
 - `.bmp`
 
-Use clear front-facing images for better recognition accuracy.
+Folder names become display names automatically:
+- `hassan` -> `Hassan`
+- `rana` -> `Rana`
+- `khan` -> `Khan`
+- `fernando` -> `Fernando`
+
+Use several clear front-facing images per person for better recognition accuracy.
 
 ## Anti-Spoofing Behavior
 
