@@ -10,6 +10,14 @@ import numpy as np
 import pyrealsense2 as rs
 import torch
 
+from helmet_detection import (
+    append_helmet_status,
+    detect_helmet_boxes,
+    get_intersection_area,
+    load_yolo_model,
+    match_helmet_to_person,
+)
+
 try:
     import onnxruntime as ort
 except ModuleNotFoundError:
@@ -32,6 +40,9 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp"}
 SCREEN_DEVICE_CLASSES = {"cell phone", "tv", "laptop", "tablet", "monitor"}
 YOLO_MODEL_NAME = "yolov5n"
 YOLO_IMAGE_SIZE = 416
+YOLO_REPO_DIR = ROOT / "yolov5"
+HELMET_WEIGHTS = ROOT / "weights" / "helmet_best.pt"
+HELMET_IMAGE_SIZE = 416
 FACE_RECOGNITION_EVERY_N_FRAMES = 5
 FACE_RECOGNITION_SCALE = 0.5
 
@@ -118,17 +129,6 @@ def recognize_faces(frame):
         )
 
     return recognized_faces
-
-
-def get_intersection_area(box_a, box_b):
-    """Return the overlap area between two bounding boxes."""
-    left = max(box_a[0], box_b[0])
-    top = max(box_a[1], box_b[1])
-    right = min(box_a[2], box_b[2])
-    bottom = min(box_a[3], box_b[3])
-    if right <= left or bottom <= top:
-        return 0
-    return (right - left) * (bottom - top)
 
 
 def extract_screen_boxes(detections, names):
@@ -218,12 +218,25 @@ else:
 prepare_known_faces(KNOWN_FACES_ROOT)
 
 # Load the local YOLOv5 model from the cloned repository.
-model = torch.hub.load("./yolov5", YOLO_MODEL_NAME, source="local")
-model.to(device)
+model = load_yolo_model(YOLO_REPO_DIR, device=device, model_name=YOLO_MODEL_NAME)
 if hasattr(model, "half"):
     model.half()
 if hasattr(model, "amp"):
     model.amp = True
+
+helmet_model = None
+if HELMET_WEIGHTS.exists():
+    helmet_model = load_yolo_model(YOLO_REPO_DIR, weights_path=HELMET_WEIGHTS, device=device)
+    if hasattr(helmet_model, "half"):
+        helmet_model.half()
+    if hasattr(helmet_model, "amp"):
+        helmet_model.amp = True
+    print(f"Loaded helmet detector weights: {HELMET_WEIGHTS}")
+else:
+    print(
+        f"Helmet detector weights not found at {HELMET_WEIGHTS}. "
+        "Train a helmet model first if you want live helmet detection."
+    )
 
 pipeline = rs.pipeline()
 config = rs.config()
@@ -249,10 +262,26 @@ try:
             results = model(frame, size=YOLO_IMAGE_SIZE)
         detections = results.xyxy[0].cpu().numpy()
         names = results.names
+        helmet_detections = detect_helmet_boxes(helmet_model, frame, image_size=HELMET_IMAGE_SIZE) if helmet_model else []
         screen_boxes = extract_screen_boxes(detections, names)
         flag_spoof_faces(recognized_faces, screen_boxes)
 
         annotated_frame = frame.copy()
+
+        for helmet in helmet_detections:
+            hx1, hy1, hx2, hy2 = helmet["box"]
+            helmet_label = f'{helmet["class_name"]} {helmet["score"]:.2f}'
+            cv2.rectangle(annotated_frame, (hx1, hy1), (hx2, hy2), (255, 255, 0), 2)
+            cv2.putText(
+                annotated_frame,
+                helmet_label,
+                (hx1, max(30, hy1 - 10)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (255, 255, 0),
+                2,
+                cv2.LINE_AA,
+            )
 
         for x1, y1, x2, y2, conf, cls in detections:
             x1, y1, x2, y2 = map(int, (x1, y1, x2, y2))
@@ -261,11 +290,13 @@ try:
 
             if class_name == "person":
                 face_match = get_person_match(current_box, recognized_faces)
-                label = format_person_label(face_match)
-                if label not in {"Unknown Person", "Threat"}:
-                    color = (0, 200, 0)
-                elif label == "Threat":
+                base_label = format_person_label(face_match)
+                helmet_match = match_helmet_to_person(current_box, helmet_detections)
+                label = base_label if base_label == "Threat" else append_helmet_status(base_label, helmet_match)
+                if base_label == "Threat":
                     color = (0, 0, 255)
+                elif helmet_match:
+                    color = (0, 200, 0)
                 else:
                     color = (0, 165, 255)
             elif class_name in SCREEN_DEVICE_CLASSES and screen_has_spoof_face(current_box, recognized_faces):
