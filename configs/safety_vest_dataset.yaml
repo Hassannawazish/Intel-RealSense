@@ -1,0 +1,9 @@
+path: C:/Users/hassa/Desktop/Intel-RealSense/safety_vest_dataset
+train: train/train
+val: valid/valid
+test: test/test
+
+nc: 2
+names:
+  - Safety Vest
+  - NO-Safety Vest

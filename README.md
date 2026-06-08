@@ -1,6 +1,6 @@
 # Camera Object Recognition
 
-This project uses an Intel RealSense camera with YOLOv5 for live object detection, person recognition, helmet detection, and basic anti-spoofing against faces shown on device screens.
+This project uses an Intel RealSense camera with YOLOv5 for live object detection, person recognition, helmet detection, safety vest detection, and basic anti-spoofing against faces shown on device screens.
 
 ## Files
 
@@ -34,7 +34,8 @@ What it does:
 - loads the local YOLOv5 model from `./yolov5`
 - runs object detection on each frame
 - optionally loads a second custom YOLOv5 helmet model from `./weights/helmet_best.pt`
-- marks each detected person as `Helmet` or `No Helmet`
+- optionally loads a third custom YOLOv5 safety vest model from `./weights/safety_vest_best.pt`
+- marks each detected person with both helmet and vest status
 - draws bounding boxes and labels
 - shows the annotated live video
 
@@ -55,7 +56,8 @@ What it does:
 - labels each matched person using their folder name
 - labels other people as `Unknown Person`
 - optionally loads a custom helmet detector from `./weights/helmet_best.pt`
-- appends `Helmet` or `No Helmet` to each person label
+- optionally loads a custom safety vest detector from `./weights/safety_vest_best.pt`
+- appends both helmet and vest status to each person label
 - detects faces shown inside screen-like devices such as phones or laptops
 - blocks those spoofed matches and labels them as `Threat`
 
@@ -76,7 +78,8 @@ What it does:
 - reduces face recognition frequency to improve live performance
 - keeps the same multi-person naming behavior as `recognition.py`
 - optionally runs a GPU helmet detector from `./weights/helmet_best.pt`
-- appends `Helmet` or `No Helmet` to each person label
+- optionally runs a GPU safety vest detector from `./weights/safety_vest_best.pt`
+- appends both helmet and vest status to each person label
 - keeps the same spoof blocking logic and labels screen-based attacks as `Threat`
 
 Run:
@@ -130,26 +133,29 @@ then the match is blocked and labeled as:
 
 This is a practical screen-spoof heuristic, not full liveness detection.
 
-## Helmet Detection
+## PPE Detection
 
-Helmet detection is now supported as a second YOLOv5 model in:
+Helmet detection and safety vest detection are supported as dedicated YOLOv5 models in:
 - `main.py`
 - `recognition.py`
 - `recognition_gpu.py`
 
 How it works:
 - the main YOLO model still detects people and general objects
-- a second custom YOLOv5 model detects helmets
+- a custom helmet model detects helmets
+- a custom safety vest model detects safety vests
 - when a helmet box lands in the upper part of a detected person box, that person is labeled `Helmet`
-- when no helmet is matched to that person, the label becomes `No Helmet`
+- when a vest box lands in the torso region of a detected person box, that person is labeled `Vest`
+- when a PPE item is not matched to that person, the label becomes `No Helmet` or `No Vest`
 
-Expected live model path:
+Expected live model paths:
 
 ```text
 weights/helmet_best.pt
+weights/safety_vest_best.pt
 ```
 
-If that file does not exist, the scripts still run, but helmet detection stays disabled.
+If either file does not exist, the scripts still run, but that PPE detector stays disabled.
 
 ## Train Your Helmet Model
 
@@ -211,6 +217,56 @@ The runtime currently uses helmet-like class names such as:
 - `safety helmet`
 
 If your class name is different, rename it in your dataset YAML or in the trained model pipeline so the live matcher can recognize it cleanly.
+
+## Train Your Safety Vest Model
+
+Your repo now also includes a ready-to-use safety vest dataset config at `configs/safety_vest_dataset.yaml`.
+
+It points to:
+
+```text
+C:\Users\hassa\Desktop\Intel-RealSense\safety_vest_dataset
+```
+
+The current vest dataset uses:
+- `nc: 2`
+- `names: [Safety Vest, NO-Safety Vest]`
+
+This vest dataset is currently a CSV-style export with `_annotations.csv` files, not native YOLO label files.
+The repo now handles that automatically:
+- `train_safety_vest_model.py` first converts the dataset into YOLO image/label format
+- the converted dataset is written under `generated_datasets/safety_vest_yolo/`
+- YOLOv5 training then runs on that generated dataset
+
+Train the vest detector with:
+
+```powershell
+python .\train_safety_vest_model.py --epochs 80 --img 640 --batch 16
+```
+
+The script stores outputs under:
+
+```text
+runs/train/safety_vest_detector/
+```
+
+The generated YOLO-format dataset will be stored under:
+
+```text
+generated_datasets/safety_vest_yolo/
+```
+
+After training, place the best weights here:
+
+```text
+weights/safety_vest_best.pt
+```
+
+Example:
+
+```powershell
+Copy-Item .\runs\train\safety_vest_detector\weights\best.pt .\weights\safety_vest_best.pt
+```
 
 ## Requirements
 

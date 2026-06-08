@@ -17,6 +17,11 @@ from helmet_detection import (
     load_yolo_model,
     match_helmet_to_person,
 )
+from safety_vest_detection import (
+    append_safety_vest_status,
+    detect_safety_vest_boxes,
+    match_safety_vest_to_person,
+)
 
 try:
     import onnxruntime as ort
@@ -43,6 +48,8 @@ YOLO_IMAGE_SIZE = 416
 YOLO_REPO_DIR = ROOT / "yolov5"
 HELMET_WEIGHTS = ROOT / "weights" / "helmet_best.pt"
 HELMET_IMAGE_SIZE = 416
+SAFETY_VEST_WEIGHTS = ROOT / "weights" / "safety_vest_best.pt"
+SAFETY_VEST_IMAGE_SIZE = 416
 FACE_RECOGNITION_EVERY_N_FRAMES = 5
 FACE_RECOGNITION_SCALE = 0.5
 
@@ -238,6 +245,20 @@ else:
         "Train a helmet model first if you want live helmet detection."
     )
 
+vest_model = None
+if SAFETY_VEST_WEIGHTS.exists():
+    vest_model = load_yolo_model(YOLO_REPO_DIR, weights_path=SAFETY_VEST_WEIGHTS, device=device)
+    if hasattr(vest_model, "half"):
+        vest_model.half()
+    if hasattr(vest_model, "amp"):
+        vest_model.amp = True
+    print(f"Loaded safety vest detector weights: {SAFETY_VEST_WEIGHTS}")
+else:
+    print(
+        f"Safety vest detector weights not found at {SAFETY_VEST_WEIGHTS}. "
+        "Train a safety vest model first if you want live safety vest detection."
+    )
+
 pipeline = rs.pipeline()
 config = rs.config()
 config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
@@ -263,6 +284,9 @@ try:
         detections = results.xyxy[0].cpu().numpy()
         names = results.names
         helmet_detections = detect_helmet_boxes(helmet_model, frame, image_size=HELMET_IMAGE_SIZE) if helmet_model else []
+        vest_detections = (
+            detect_safety_vest_boxes(vest_model, frame, image_size=SAFETY_VEST_IMAGE_SIZE) if vest_model else []
+        )
         screen_boxes = extract_screen_boxes(detections, names)
         flag_spoof_faces(recognized_faces, screen_boxes)
 
@@ -283,6 +307,21 @@ try:
                 cv2.LINE_AA,
             )
 
+        for vest in vest_detections:
+            vx1, vy1, vx2, vy2 = vest["box"]
+            vest_label = f'{vest["class_name"]} {vest["score"]:.2f}'
+            cv2.rectangle(annotated_frame, (vx1, vy1), (vx2, vy2), (255, 0, 255), 2)
+            cv2.putText(
+                annotated_frame,
+                vest_label,
+                (vx1, max(30, vy1 - 10)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (255, 0, 255),
+                2,
+                cv2.LINE_AA,
+            )
+
         for x1, y1, x2, y2, conf, cls in detections:
             x1, y1, x2, y2 = map(int, (x1, y1, x2, y2))
             class_name = names[int(cls)]
@@ -292,10 +331,14 @@ try:
                 face_match = get_person_match(current_box, recognized_faces)
                 base_label = format_person_label(face_match)
                 helmet_match = match_helmet_to_person(current_box, helmet_detections)
-                label = base_label if base_label == "Threat" else append_helmet_status(base_label, helmet_match)
+                vest_match = match_safety_vest_to_person(current_box, vest_detections)
+                if base_label == "Threat":
+                    label = base_label
+                else:
+                    label = append_safety_vest_status(append_helmet_status(base_label, helmet_match), vest_match)
                 if base_label == "Threat":
                     color = (0, 0, 255)
-                elif helmet_match:
+                elif helmet_match and vest_match:
                     color = (0, 200, 0)
                 else:
                     color = (0, 165, 255)
