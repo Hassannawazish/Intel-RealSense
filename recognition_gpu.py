@@ -10,12 +10,21 @@ import numpy as np
 import pyrealsense2 as rs
 import torch
 
+from display_utils import build_person_ppe_lines, draw_label_block
 from helmet_detection import (
     append_helmet_status,
     detect_helmet_boxes,
     get_intersection_area,
     load_yolo_model,
     match_helmet_to_person,
+)
+from ppe_accessory_detection import (
+    append_gloves_status,
+    append_goggles_status,
+    detect_glove_boxes,
+    detect_goggle_boxes,
+    match_gloves_to_person,
+    match_goggles_to_person,
 )
 from safety_vest_detection import (
     append_safety_vest_status,
@@ -50,8 +59,12 @@ HELMET_WEIGHTS = ROOT / "weights" / "helmet_best.pt"
 HELMET_IMAGE_SIZE = 416
 SAFETY_VEST_WEIGHTS = ROOT / "weights" / "safety_vest_best.pt"
 SAFETY_VEST_IMAGE_SIZE = 416
+ACCESSORY_WEIGHTS = ROOT / "external_models" / "epoch30.pt"
+ACCESSORY_IMAGE_SIZE = 416
 FACE_RECOGNITION_EVERY_N_FRAMES = 5
 FACE_RECOGNITION_SCALE = 0.5
+WINDOW_NAME = "YOLOv5 RealSense Recognition (GPU)"
+DISPLAY_SIZE = (1440, 960)
 
 
 def format_person_name(folder_name):
@@ -259,10 +272,26 @@ else:
         "Train a safety vest model first if you want live safety vest detection."
     )
 
+accessory_model = None
+if ACCESSORY_WEIGHTS.exists():
+    accessory_model = load_yolo_model(YOLO_REPO_DIR, weights_path=ACCESSORY_WEIGHTS, device=device)
+    if hasattr(accessory_model, "half"):
+        accessory_model.half()
+    if hasattr(accessory_model, "amp"):
+        accessory_model.amp = True
+    print(f"Loaded gloves/goggles detector weights: {ACCESSORY_WEIGHTS}")
+else:
+    print(
+        f"Gloves/goggles detector weights not found at {ACCESSORY_WEIGHTS}. "
+        "Place your trained accessory model there if you want live glove and goggle detection."
+    )
+
 pipeline = rs.pipeline()
 config = rs.config()
 config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
 pipeline.start(config)
+cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
+cv2.resizeWindow(WINDOW_NAME, *DISPLAY_SIZE)
 
 frame_index = 0
 recognized_faces = []
@@ -286,6 +315,12 @@ try:
         helmet_detections = detect_helmet_boxes(helmet_model, frame, image_size=HELMET_IMAGE_SIZE) if helmet_model else []
         vest_detections = (
             detect_safety_vest_boxes(vest_model, frame, image_size=SAFETY_VEST_IMAGE_SIZE) if vest_model else []
+        )
+        glove_detections = (
+            detect_glove_boxes(accessory_model, frame, image_size=ACCESSORY_IMAGE_SIZE) if accessory_model else []
+        )
+        goggle_detections = (
+            detect_goggle_boxes(accessory_model, frame, image_size=ACCESSORY_IMAGE_SIZE) if accessory_model else []
         )
         screen_boxes = extract_screen_boxes(detections, names)
         flag_spoof_faces(recognized_faces, screen_boxes)
@@ -322,6 +357,36 @@ try:
                 cv2.LINE_AA,
             )
 
+        for glove in glove_detections:
+            gx1, gy1, gx2, gy2 = glove["box"]
+            glove_label = f'{glove["class_name"]} {glove["score"]:.2f}'
+            cv2.rectangle(annotated_frame, (gx1, gy1), (gx2, gy2), (0, 255, 255), 2)
+            cv2.putText(
+                annotated_frame,
+                glove_label,
+                (gx1, max(30, gy1 - 10)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 255, 255),
+                2,
+                cv2.LINE_AA,
+            )
+
+        for goggle in goggle_detections:
+            gx1, gy1, gx2, gy2 = goggle["box"]
+            goggle_label = f'{goggle["class_name"]} {goggle["score"]:.2f}'
+            cv2.rectangle(annotated_frame, (gx1, gy1), (gx2, gy2), (0, 128, 255), 2)
+            cv2.putText(
+                annotated_frame,
+                goggle_label,
+                (gx1, max(30, gy1 - 10)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 128, 255),
+                2,
+                cv2.LINE_AA,
+            )
+
         for x1, y1, x2, y2, conf, cls in detections:
             x1, y1, x2, y2 = map(int, (x1, y1, x2, y2))
             class_name = names[int(cls)]
@@ -332,13 +397,26 @@ try:
                 base_label = format_person_label(face_match)
                 helmet_match = match_helmet_to_person(current_box, helmet_detections)
                 vest_match = match_safety_vest_to_person(current_box, vest_detections)
+                glove_match = match_gloves_to_person(current_box, glove_detections)
+                goggle_match = match_goggles_to_person(current_box, goggle_detections)
+                label_lines = (
+                    [base_label]
+                    if base_label == "Threat"
+                    else build_person_ppe_lines(base_label, helmet_match, vest_match, glove_match, goggle_match)
+                )
                 if base_label == "Threat":
                     label = base_label
                 else:
-                    label = append_safety_vest_status(append_helmet_status(base_label, helmet_match), vest_match)
+                    label = append_goggles_status(
+                        append_gloves_status(
+                            append_safety_vest_status(append_helmet_status(base_label, helmet_match), vest_match),
+                            glove_match,
+                        ),
+                        goggle_match,
+                    )
                 if base_label == "Threat":
                     color = (0, 0, 255)
-                elif helmet_match and vest_match:
+                elif helmet_match and vest_match and glove_match and goggle_match:
                     color = (0, 200, 0)
                 else:
                     color = (0, 165, 255)
@@ -350,18 +428,22 @@ try:
                 color = (255, 0, 0)
 
             cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
-            cv2.putText(
-                annotated_frame,
-                label,
-                (x1, max(30, y1 - 10)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.8,
-                color,
-                2,
-                cv2.LINE_AA,
-            )
+            if class_name == "person":
+                draw_label_block(annotated_frame, label_lines, (x1, y1), color, font_scale=0.6, thickness=2)
+            else:
+                cv2.putText(
+                    annotated_frame,
+                    label,
+                    (x1, max(30, y1 - 10)),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.8,
+                    color,
+                    2,
+                    cv2.LINE_AA,
+                )
 
-        cv2.imshow("YOLOv5 RealSense Recognition (GPU)", annotated_frame)
+        display_frame = cv2.resize(annotated_frame, DISPLAY_SIZE, interpolation=cv2.INTER_LINEAR)
+        cv2.imshow(WINDOW_NAME, display_frame)
 
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break

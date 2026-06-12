@@ -57,5 +57,5 @@ def match_safety_vest_to_person(person_box, vest_detections):
 
 
 def append_safety_vest_status(label, vest_match):
-    suffix = "Vest" if vest_match else "No Vest"
+    suffix = f"Vest {vest_match['score']:.2f}" if vest_match else "No Vest"
     return f"{label} | {suffix}"

@@ -6,6 +6,36 @@ import torch
 DEFAULT_HELMET_CLASS_NAMES = {"helmet", "hardhat", "hard hat", "safety helmet"}
 
 
+class _UltralyticsResultsAdapter:
+    """Expose Ultralytics YOLO results with the subset of YOLOv5-style attributes this repo uses."""
+
+    def __init__(self, prediction):
+        self.xyxy = [prediction.boxes.data]
+        self.names = prediction.names
+
+
+class _UltralyticsModelAdapter:
+    """Wrap an Ultralytics YOLO model so the rest of the repo can call it like YOLOv5 hub models."""
+
+    def __init__(self, model, device="cpu"):
+        self.model = model
+        self.device = device
+        self.names = getattr(model, "names", {})
+        self.amp = False
+
+    def to(self, device):
+        self.device = str(device)
+        return self
+
+    def half(self):
+        return self
+
+    def __call__(self, frame, size=None):
+        imgsz = size if size else 640
+        results = self.model.predict(frame, imgsz=imgsz, device=self.device, verbose=False)
+        return _UltralyticsResultsAdapter(results[0])
+
+
 def normalize_class_name(value):
     return str(value).strip().lower().replace("-", " ")
 
@@ -17,7 +47,15 @@ def load_yolo_model(repo_dir, weights_path=None, device="cpu", model_name=None):
         weights_path = Path(weights_path)
         if not weights_path.exists():
             raise FileNotFoundError(f"Model weights were not found: {weights_path}")
-        model = torch.hub.load(str(repo_dir), "custom", path=str(weights_path), source="local")
+        try:
+            model = torch.hub.load(str(repo_dir), "custom", path=str(weights_path), source="local")
+        except Exception as exc:
+            try:
+                from ultralytics import YOLO
+            except ModuleNotFoundError:
+                raise exc
+
+            model = _UltralyticsModelAdapter(YOLO(str(weights_path)), device=device)
     elif model_name:
         model = torch.hub.load(str(repo_dir), model_name, source="local")
     else:
@@ -113,5 +151,5 @@ def match_helmet_to_person(person_box, helmet_detections):
 
 
 def append_helmet_status(label, helmet_match):
-    suffix = "Helmet" if helmet_match else "No Helmet"
+    suffix = f"Helmet {helmet_match['score']:.2f}" if helmet_match else "No Helmet"
     return f"{label} | {suffix}"

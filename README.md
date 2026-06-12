@@ -1,6 +1,6 @@
 # Camera Object Recognition
 
-This project uses an Intel RealSense camera with YOLOv5 for live object detection, person recognition, helmet detection, safety vest detection, and basic anti-spoofing against faces shown on device screens.
+This project uses an Intel RealSense camera with YOLOv5 for live object detection, person recognition, helmet detection, safety vest detection, gloves detection, goggles detection, and basic anti-spoofing against faces shown on device screens.
 
 ## Files
 
@@ -35,7 +35,8 @@ What it does:
 - runs object detection on each frame
 - optionally loads a second custom YOLOv5 helmet model from `./weights/helmet_best.pt`
 - optionally loads a third custom YOLOv5 safety vest model from `./weights/safety_vest_best.pt`
-- marks each detected person with both helmet and vest status
+- optionally loads a shared gloves/goggles model from `./external_models/epoch30.pt`
+- marks each detected person with helmet, vest, gloves, and goggles status
 - draws bounding boxes and labels
 - shows the annotated live video
 
@@ -57,7 +58,8 @@ What it does:
 - labels other people as `Unknown Person`
 - optionally loads a custom helmet detector from `./weights/helmet_best.pt`
 - optionally loads a custom safety vest detector from `./weights/safety_vest_best.pt`
-- appends both helmet and vest status to each person label
+- optionally loads a shared gloves/goggles detector from `./external_models/epoch30.pt`
+- appends helmet, vest, gloves, and goggles status to each person label
 - detects faces shown inside screen-like devices such as phones or laptops
 - blocks those spoofed matches and labels them as `Threat`
 
@@ -79,7 +81,8 @@ What it does:
 - keeps the same multi-person naming behavior as `recognition.py`
 - optionally runs a GPU helmet detector from `./weights/helmet_best.pt`
 - optionally runs a GPU safety vest detector from `./weights/safety_vest_best.pt`
-- appends both helmet and vest status to each person label
+- optionally runs a GPU gloves/goggles detector from `./external_models/epoch30.pt`
+- appends helmet, vest, gloves, and goggles status to each person label
 - keeps the same spoof blocking logic and labels screen-based attacks as `Threat`
 
 Run:
@@ -135,7 +138,7 @@ This is a practical screen-spoof heuristic, not full liveness detection.
 
 ## PPE Detection
 
-Helmet detection and safety vest detection are supported as dedicated YOLOv5 models in:
+Helmet detection, safety vest detection, gloves detection, and goggles detection are supported in:
 - `main.py`
 - `recognition.py`
 - `recognition_gpu.py`
@@ -144,18 +147,22 @@ How it works:
 - the main YOLO model still detects people and general objects
 - a custom helmet model detects helmets
 - a custom safety vest model detects safety vests
+- a shared custom accessory model detects gloves and goggles
 - when a helmet box lands in the upper part of a detected person box, that person is labeled `Helmet`
 - when a vest box lands in the torso region of a detected person box, that person is labeled `Vest`
-- when a PPE item is not matched to that person, the label becomes `No Helmet` or `No Vest`
+- when a glove box lands in the lower outer body region of a detected person box, that person is labeled `Gloves`
+- when a goggle or glasses box lands in the upper face region of a detected person box, that person is labeled `Goggles`
+- when a PPE item is not matched to that person, the label becomes `No Helmet`, `No Vest`, `No Gloves`, or `No Goggles`
 
 Expected live model paths:
 
 ```text
 weights/helmet_best.pt
 weights/safety_vest_best.pt
+external_models/epoch30.pt
 ```
 
-If either file does not exist, the scripts still run, but that PPE detector stays disabled.
+If any of those files do not exist, the scripts still run, but that PPE detector stays disabled.
 
 ## Train Your Helmet Model
 
