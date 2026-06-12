@@ -319,6 +319,79 @@ A Python environment with:
 
 If `recognition_gpu.py` says CUDA is unavailable, your PyTorch install is CPU-only and must be replaced with a CUDA-enabled build.
 
+## React Web Dashboard
+
+You can now run the camera feed inside a React-based dashboard with live PPE status cards for:
+- Helmet
+- Vest
+- Gloves
+- Goggles
+
+The dashboard includes:
+- a live browser video stream from the RealSense camera
+- a primary worker PPE checklist with check marks
+- per-item confidence percentages
+- model-load indicators
+- a larger, presentation-friendly visual layout
+
+### Backend service
+
+Install the dashboard backend dependencies:
+
+```powershell
+python -m pip install -r .\requirements_web_dashboard.txt
+python -m pip install -r .\yolov5\requirements.txt
+```
+
+Start the camera streaming service:
+
+```powershell
+python .\web_dashboard_server.py
+```
+
+This starts:
+- `http://localhost:8000/video_feed`
+- `http://localhost:8000/api/status`
+
+### React frontend
+
+The React app lives in:
+
+```text
+web-dashboard/
+```
+
+Install and run it:
+
+```powershell
+cd .\web-dashboard
+npm install
+npm run dev
+```
+
+Then open:
+
+```text
+http://localhost:5173
+```
+
+If your backend runs on a different host or port, set:
+
+```text
+web-dashboard/.env
+```
+
+with:
+
+```text
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+### Important
+
+Run `web_dashboard_server.py` by itself when using the web dashboard.
+Do not run `main.py`, `recognition.py`, or `recognition_gpu.py` at the same time, because the RealSense camera can only be owned by one process at once.
+
 ## Notes
 
 - Close RealSense Viewer before running these scripts, otherwise the camera stream may already be occupied.

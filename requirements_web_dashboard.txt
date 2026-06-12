@@ -1,0 +1,8 @@
+flask
+numpy
+opencv-python
+pyrealsense2
+torch
+ultralytics
+onnxruntime
+facial_recognition
