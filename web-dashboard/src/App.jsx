@@ -31,7 +31,7 @@ function StatusCard({ title, status, tone }) {
   );
 }
 
-function AccessSwitch({ authorization }) {
+function AccessSwitch({ authorization, compact = false }) {
   const requiredFrames = authorization?.required_frames ?? 3;
   const consecutiveFrames = authorization?.consecutive_frames ?? 0;
   const switchOn = Boolean(authorization?.switch_on);
@@ -50,7 +50,7 @@ function AccessSwitch({ authorization }) {
   }
 
   return (
-    <section className={`access-switch ${switchOn ? "is-on" : "is-off"}`}>
+    <section className={`access-switch ${switchOn ? "is-on" : "is-off"} ${compact ? "is-compact" : ""}`}>
       <div className="access-switch__header">
         <div>
           <p className="panel__eyebrow">Entry Control</p>
@@ -108,6 +108,7 @@ export default function App() {
     },
   });
   const [frameToken, setFrameToken] = useState(Date.now());
+  const [logoToken, setLogoToken] = useState(Date.now());
 
   useEffect(() => {
     let mounted = true;
@@ -158,11 +159,28 @@ export default function App() {
 
       <section className="hero-panel">
         <div className="hero-copy">
-          <span className="eyebrow">Industrial Vision Control</span>
-          <h1>PPE Monitoring Dashboard</h1>
+          <div className="brand-row">
+            <img
+              className="brand-row__logo"
+              src={`${API_BASE_URL}/api/branding/logo?t=${logoToken}`}
+              alt="SCAI Systems logo"
+              onError={() => {
+                window.setTimeout(() => {
+                  setLogoToken(Date.now());
+                }, 500);
+              }}
+            />
+            <div className="brand-row__copy">
+              <span className="eyebrow">SCAI Systems</span>
+              <p className="brand-row__tag">Industrial Vision Control</p>
+            </div>
+          </div>
+          <h1>Worker Protection Monitoring Dashboard</h1>
           <p className="hero-text">
             Live camera stream with real-time protection checks for helmet, vest, gloves, and goggles.
           </p>
+
+          <AccessSwitch authorization={authorization} compact />
 
           <div className="hero-metrics">
             <div className="metric-pill">
@@ -205,33 +223,13 @@ export default function App() {
       </section>
 
       <section className="dashboard-grid">
-        <div className="panel">
+        <div className="panel panel--merged">
           <div className="panel__header">
             <p className="panel__eyebrow">Primary Worker</p>
             <h3>{status.primary_person?.name || "Protection Checklist"}</h3>
           </div>
 
-          <AccessSwitch authorization={authorization} />
-
-          <div className="status-grid">
-            {ppeCards.map((card) => (
-              <StatusCard
-                key={card.key}
-                title={card.title}
-                status={primaryPpe[card.key]}
-                tone={card.tone}
-              />
-            ))}
-          </div>
-        </div>
-
-        <div className="panel panel--narrow">
-          <div className="panel__header">
-            <p className="panel__eyebrow">System Status</p>
-            <h3>Detection Stack</h3>
-          </div>
-
-          <div className="stack-list">
+          <div className="stack-list stack-list--inline">
             <div className="stack-row">
               <span>Main PPE Logic</span>
               <strong>{status.ready ? "Active" : "Starting"}</strong>
@@ -245,13 +243,24 @@ export default function App() {
               <strong>{status.models?.vest ? "Loaded" : "Missing"}</strong>
             </div>
             <div className="stack-row">
-              <span>Gloves + Goggles Model</span>
+              <span>Gloves + Goggles</span>
               <strong>{status.models?.accessory ? "Loaded" : "Missing"}</strong>
             </div>
             <div className="stack-row">
               <span>Access Switch</span>
               <strong>{authorization.switch_on ? "On" : "Off"}</strong>
             </div>
+          </div>
+
+          <div className="status-grid">
+            {ppeCards.map((card) => (
+              <StatusCard
+                key={card.key}
+                title={card.title}
+                status={primaryPpe[card.key]}
+                tone={card.tone}
+              />
+            ))}
           </div>
 
           <div className="summary-card">

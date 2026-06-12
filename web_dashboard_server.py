@@ -11,7 +11,7 @@ import cv2
 import numpy as np
 import pyrealsense2 as rs
 import torch
-from flask import Flask, Response, abort, jsonify
+from flask import Flask, Response, abort, jsonify, send_file
 
 from display_utils import build_person_ppe_lines, draw_label_block
 from helmet_detection import detect_helmet_boxes, load_yolo_model, match_helmet_to_person
@@ -47,6 +47,7 @@ WINDOW_SIZE = (1280, 720)
 KNOWN_FACES_ROOT = ROOT / "known_faces"
 FACE_MATCH_THRESHOLD = 0.3
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp"}
+LOGO_PATH = ROOT / "logo" / "scailogo.png"
 AUTH_REQUIRED_FRAMES = 3
 DOOR_OPEN_SECONDS = 5.0
 
@@ -432,6 +433,13 @@ def health():
 @app.route("/api/status")
 def status():
     return jsonify(service.get_status())
+
+
+@app.route("/api/branding/logo")
+def branding_logo():
+    if not LOGO_PATH.exists():
+        abort(404, description=f"Logo not found at {LOGO_PATH}")
+    return send_file(LOGO_PATH, mimetype="image/png", max_age=0)
 
 
 @app.route("/api/frame")

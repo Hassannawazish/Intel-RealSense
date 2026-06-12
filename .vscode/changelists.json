@@ -3,7 +3,10 @@
     {
       "name": "Default",
       "files": [
-        "yolov5/"
+        "yolov5/",
+        "external_models/epoch30.pt",
+        ".vscode/changelists.json",
+        "logo/scailogo.png"
       ]
     }
   ],
