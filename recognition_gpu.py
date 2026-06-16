@@ -244,20 +244,6 @@ if hasattr(model, "half"):
 if hasattr(model, "amp"):
     model.amp = True
 
-helmet_model = None
-if HELMET_WEIGHTS.exists():
-    helmet_model = load_yolo_model(YOLO_REPO_DIR, weights_path=HELMET_WEIGHTS, device=device)
-    if hasattr(helmet_model, "half"):
-        helmet_model.half()
-    if hasattr(helmet_model, "amp"):
-        helmet_model.amp = True
-    print(f"Loaded helmet detector weights: {HELMET_WEIGHTS}")
-else:
-    print(
-        f"Helmet detector weights not found at {HELMET_WEIGHTS}. "
-        "Train a helmet model first if you want live helmet detection."
-    )
-
 vest_model = None
 if SAFETY_VEST_WEIGHTS.exists():
     vest_model = load_yolo_model(YOLO_REPO_DIR, weights_path=SAFETY_VEST_WEIGHTS, device=device)
@@ -279,11 +265,27 @@ if ACCESSORY_WEIGHTS.exists():
         accessory_model.half()
     if hasattr(accessory_model, "amp"):
         accessory_model.amp = True
-    print(f"Loaded gloves/goggles detector weights: {ACCESSORY_WEIGHTS}")
+    print(f"Loaded helmet/gloves/goggles detector weights: {ACCESSORY_WEIGHTS}")
 else:
     print(
-        f"Gloves/goggles detector weights not found at {ACCESSORY_WEIGHTS}. "
-        "Place your trained accessory model there if you want live glove and goggle detection."
+        f"Helmet/gloves/goggles detector weights not found at {ACCESSORY_WEIGHTS}. "
+        "Place your trained shared PPE model there if you want live helmet, glove, and goggle detection."
+    )
+
+helmet_model = accessory_model
+if helmet_model is not None:
+    print(f"Using shared PPE model for helmet detection: {ACCESSORY_WEIGHTS}")
+elif HELMET_WEIGHTS.exists():
+    helmet_model = load_yolo_model(YOLO_REPO_DIR, weights_path=HELMET_WEIGHTS, device=device)
+    if hasattr(helmet_model, "half"):
+        helmet_model.half()
+    if hasattr(helmet_model, "amp"):
+        helmet_model.amp = True
+    print(f"Shared PPE model unavailable, fell back to helmet detector weights: {HELMET_WEIGHTS}")
+else:
+    print(
+        f"No helmet-capable model found at {ACCESSORY_WEIGHTS} or {HELMET_WEIGHTS}. "
+        "Place a trained model there if you want live helmet detection."
     )
 
 pipeline = rs.pipeline()

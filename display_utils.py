@@ -1,6 +1,28 @@
 import cv2
 
 
+PPE_LABELS = {
+    "en": {
+        "helmet": ("Helmet", "No Helmet"),
+        "vest": ("Vest", "No Vest"),
+        "gloves": ("Gloves", "No Gloves"),
+        "goggles": ("Goggles", "No Goggles"),
+    },
+    "fr": {
+        "helmet": ("Casque", "Pas de Casque"),
+        "vest": ("Gilet", "Pas de Gilet"),
+        "gloves": ("Gants", "Pas de Gants"),
+        "goggles": ("Lunettes", "Pas de Lunettes"),
+    },
+    "es": {
+        "helmet": ("Casco", "Sin Casco"),
+        "vest": ("Chaleco", "Sin Chaleco"),
+        "gloves": ("Guantes", "Sin Guantes"),
+        "goggles": ("Gafas", "Sin Gafas"),
+    },
+}
+
+
 def format_status_with_score(present_label, missing_label, match):
     """Return a human-readable status string with confidence when available."""
     if match:
@@ -8,14 +30,15 @@ def format_status_with_score(present_label, missing_label, match):
     return missing_label
 
 
-def build_person_ppe_lines(base_label, helmet_match, vest_match, glove_match, goggle_match):
+def build_person_ppe_lines(base_label, helmet_match, vest_match, glove_match, goggle_match, language="fr"):
     """Return multi-line person label text for all PPE states."""
+    labels = PPE_LABELS.get(language, PPE_LABELS["en"])
     return [
         base_label,
-        format_status_with_score("Helmet", "No Helmet", helmet_match),
-        format_status_with_score("Vest", "No Vest", vest_match),
-        format_status_with_score("Gloves", "No Gloves", glove_match),
-        format_status_with_score("Goggles", "No Goggles", goggle_match),
+        format_status_with_score(*labels["helmet"], helmet_match),
+        format_status_with_score(*labels["vest"], vest_match),
+        format_status_with_score(*labels["gloves"], glove_match),
+        format_status_with_score(*labels["goggles"], goggle_match),
     ]
 
 

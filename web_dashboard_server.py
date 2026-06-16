@@ -11,17 +11,28 @@ import cv2
 import numpy as np
 import pyrealsense2 as rs
 import torch
-from flask import Flask, Response, abort, jsonify, send_file
+from flask import Flask, Response, abort, jsonify, request, send_file
 
 from display_utils import build_person_ppe_lines, draw_label_block
-from helmet_detection import detect_helmet_boxes, load_yolo_model, match_helmet_to_person
+from helmet_detection import (
+    detect_helmet_boxes,
+    get_person_head_region,
+    load_yolo_model,
+    match_helmet_to_person,
+)
 from ppe_accessory_detection import (
     detect_glove_boxes,
     detect_goggle_boxes,
+    get_person_eye_region,
+    get_person_hand_regions,
     match_gloves_to_person,
     match_goggles_to_person,
 )
-from safety_vest_detection import detect_safety_vest_boxes, match_safety_vest_to_person
+from safety_vest_detection import (
+    detect_safety_vest_boxes,
+    get_person_torso_region,
+    match_safety_vest_to_person,
+)
 
 try:
     from facial_recognition import add_person, recognize_image, remove_face_database
@@ -48,10 +59,79 @@ KNOWN_FACES_ROOT = ROOT / "known_faces"
 FACE_MATCH_THRESHOLD = 0.3
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp"}
 LOGO_PATH = ROOT / "logo" / "scailogo.png"
-AUTH_REQUIRED_FRAMES = 3
+AUTH_REQUIRED_FRAMES = 2
 DOOR_OPEN_SECONDS = 5.0
+SUPPORTED_LANGUAGES = {"en", "fr", "es"}
+
+BACKEND_TRANSLATIONS = {
+    "en": {
+        "unknown_person": "Unknown Person",
+        "helmet": "Helmet",
+        "vest": "Vest",
+        "gloves": "Gloves",
+        "goggles": "Goggles",
+        "door_triggered": "[ACCESS] Door open triggered for {name}",
+    },
+    "fr": {
+        "unknown_person": "Personne Inconnue",
+        "helmet": "Casque",
+        "vest": "Gilet",
+        "gloves": "Gants",
+        "goggles": "Lunettes",
+        "door_triggered": "[ACCÈS] Ouverture de porte déclenchée pour {name}",
+    },
+    "es": {
+        "unknown_person": "Persona Desconocida",
+        "helmet": "Casco",
+        "vest": "Chaleco",
+        "gloves": "Guantes",
+        "goggles": "Gafas",
+        "door_triggered": "[ACCESO] Apertura de puerta activada para {name}",
+    },
+}
 
 app = Flask(__name__)
+DETECTED_BOX_COLOR = (0, 255, 255)
+MISSING_BOX_COLOR = (0, 0, 255)
+FACE_BOX_COLOR = (0, 255, 255)
+
+
+def draw_detection_rectangle(frame, box, color, label=None, thickness=2):
+    x1, y1, x2, y2 = map(int, box)
+    cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
+    if not label:
+        return
+
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.48
+    text_thickness = 1
+    (text_width, text_height), _ = cv2.getTextSize(label, font, font_scale, text_thickness)
+    text_top = max(0, y1 - text_height - 10)
+    text_bottom = text_top + text_height + 8
+    text_right = x1 + text_width + 10
+    cv2.rectangle(frame, (x1, text_top), (text_right, text_bottom), color, -1)
+    cv2.putText(
+        frame,
+        label,
+        (x1 + 5, text_bottom - 5),
+        font,
+        font_scale,
+        (20, 20, 20),
+        text_thickness,
+        cv2.LINE_AA,
+    )
+
+
+def get_person_face_region(person_box):
+    x1, y1, x2, y2 = person_box
+    width = max(1, x2 - x1)
+    height = max(1, y2 - y1)
+    return (
+        x1 + int(width * 0.2),
+        y1 + int(height * 0.04),
+        x2 - int(width * 0.2),
+        y1 + int(height * 0.3),
+    )
 
 
 def build_item_status(label, match):
@@ -60,6 +140,15 @@ def build_item_status(label, match):
         "detected": bool(match),
         "score": round(float(match["score"]), 3) if match else None,
     }
+
+
+def get_language():
+    requested = request.args.get("lang", "fr").strip().lower()
+    return requested if requested in SUPPORTED_LANGUAGES else "fr"
+
+
+def translate(language, key):
+    return BACKEND_TRANSLATIONS.get(language, BACKEND_TRANSLATIONS["en"])[key]
 
 
 def format_person_name(folder_name):
@@ -102,7 +191,7 @@ def prepare_known_faces(known_faces_root):
         )
 
 
-def recognize_faces(frame):
+def recognize_faces(frame, language):
     results = recognize_image(frame, save_output=False, threshold=FACE_MATCH_THRESHOLD)
 
     recognized_faces = []
@@ -116,7 +205,7 @@ def recognize_faces(frame):
 
         name = result["name"]
         if name == "Unknown":
-            name = "Unknown Person"
+            name = translate(language, "unknown_person")
         score = float(result.get("score", 0.0))
 
         recognized_faces.append(
@@ -141,10 +230,10 @@ def get_person_match(person_box, recognized_faces):
     return None
 
 
-def format_person_label(face):
+def format_person_label(face, language):
     if face is None:
-        return "Unknown Person"
-    if face["name"] == "Unknown Person":
+        return translate(language, "unknown_person")
+    if face["name"] == translate(language, "unknown_person"):
         return face["name"]
     return f'{face["name"]}: {face["score"]:.2f}'
 
@@ -159,6 +248,7 @@ class PPECameraService:
         self.pipeline = None
         self.frame_lock = threading.Lock()
         self.latest_jpeg = None
+        self.current_language = "fr"
         self.authorized_streak = 0
         self.door_open_until = 0.0
         self.last_opened_at = None
@@ -206,11 +296,6 @@ class PPECameraService:
             load_yolo_model(YOLO_REPO_DIR, device=self.device, model_name=OBJECT_MODEL_NAME)
         )
 
-        if HELMET_WEIGHTS.exists():
-            self.helmet_model = self._prepare_model(
-                load_yolo_model(YOLO_REPO_DIR, weights_path=HELMET_WEIGHTS, device=self.device)
-            )
-
         if SAFETY_VEST_WEIGHTS.exists():
             self.vest_model = self._prepare_model(
                 load_yolo_model(YOLO_REPO_DIR, weights_path=SAFETY_VEST_WEIGHTS, device=self.device)
@@ -219,6 +304,12 @@ class PPECameraService:
         if ACCESSORY_WEIGHTS.exists():
             self.accessory_model = self._prepare_model(
                 load_yolo_model(YOLO_REPO_DIR, weights_path=ACCESSORY_WEIGHTS, device=self.device)
+            )
+
+        self.helmet_model = self.accessory_model
+        if self.helmet_model is None and HELMET_WEIGHTS.exists():
+            self.helmet_model = self._prepare_model(
+                load_yolo_model(YOLO_REPO_DIR, weights_path=HELMET_WEIGHTS, device=self.device)
             )
 
         self.latest_status["models"] = {
@@ -252,8 +343,9 @@ class PPECameraService:
                     continue
 
                 frame = np.asanyarray(color_frame.get_data())
-                annotated_frame, status = self._process_frame(frame)
-                ok, encoded = cv2.imencode(".jpg", annotated_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+                language = self.current_language
+                annotated_frame, status = self._process_frame(frame, language)
+                ok, encoded = cv2.imencode(".jpg", annotated_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
                 if not ok:
                     continue
 
@@ -270,12 +362,12 @@ class PPECameraService:
                     }
                 time.sleep(0.1)
 
-    def _is_known_person(self, face_match):
-        return bool(face_match and face_match["name"] != "Unknown Person")
+    def _is_known_person(self, face_match, language):
+        return bool(face_match and face_match["name"] != translate(language, "unknown_person"))
 
-    def _update_authorization_state(self, primary_person):
+    def _update_authorization_state(self, primary_person, language):
         now = time.time()
-        known_person = bool(primary_person and self._is_known_person(primary_person["face"]))
+        known_person = bool(primary_person and self._is_known_person(primary_person["face"], language))
         ppe_complete = bool(
             primary_person
             and primary_person["helmet"]
@@ -294,7 +386,7 @@ class PPECameraService:
         if eligible and self.authorized_streak == AUTH_REQUIRED_FRAMES:
             self.door_open_until = now + DOOR_OPEN_SECONDS
             self.last_opened_at = now
-            self._trigger_door_open(self.last_authorized_name)
+            self._trigger_door_open(self.last_authorized_name, language)
 
         switch_on = now < self.door_open_until
         return {
@@ -309,12 +401,12 @@ class PPECameraService:
             "last_opened_at": self.last_opened_at,
         }
 
-    def _trigger_door_open(self, person_name):
+    def _trigger_door_open(self, person_name, language):
         # Placeholder hook for real door hardware integration.
-        print(f"[ACCESS] Door open triggered for {person_name}")
+        print(BACKEND_TRANSLATIONS.get(language, BACKEND_TRANSLATIONS["en"])["door_triggered"].format(name=person_name))
 
-    def _process_frame(self, frame):
-        recognized_faces = recognize_faces(frame)
+    def _process_frame(self, frame, language):
+        recognized_faces = recognize_faces(frame, language)
         with torch.inference_mode():
             results = self.object_model(frame, size=OBJECT_IMAGE_SIZE)
         detections = results.xyxy[0].cpu().numpy()
@@ -362,20 +454,79 @@ class PPECameraService:
         if persons:
             primary = max(persons, key=lambda item: (item["box"][2] - item["box"][0]) * (item["box"][3] - item["box"][1]))
 
-        authorization = self._update_authorization_state(primary)
+        authorization = self._update_authorization_state(primary, language)
 
         for person in persons:
             x1, y1, x2, y2 = person["box"]
             all_ppe = person["helmet"] and person["vest"] and person["gloves"] and person["goggles"]
             color = (0, 200, 0) if all_ppe else (0, 165, 255)
             cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
-            person_name = format_person_label(person["face"])
+
+            face_region = get_person_face_region(person["box"])
+            head_region = get_person_head_region(person["box"])
+            torso_region = get_person_torso_region(person["box"])
+            left_hand_region, right_hand_region = get_person_hand_regions(person["box"])
+            eye_region = get_person_eye_region(person["box"])
+
+            if person["face"]:
+                draw_detection_rectangle(
+                    annotated,
+                    person["face"]["box"],
+                    FACE_BOX_COLOR,
+                    f"Visage {person['face']['score']:.2f}",
+                )
+            else:
+                draw_detection_rectangle(annotated, face_region, MISSING_BOX_COLOR, "Visage")
+
+            if person["helmet"]:
+                draw_detection_rectangle(
+                    annotated,
+                    person["helmet"]["box"],
+                    DETECTED_BOX_COLOR,
+                    f"Casque {person['helmet']['score']:.2f}",
+                )
+            else:
+                draw_detection_rectangle(annotated, head_region, MISSING_BOX_COLOR, "Pas de Casque")
+
+            if person["vest"]:
+                draw_detection_rectangle(
+                    annotated,
+                    person["vest"]["box"],
+                    DETECTED_BOX_COLOR,
+                    f"Gilet {person['vest']['score']:.2f}",
+                )
+            else:
+                draw_detection_rectangle(annotated, torso_region, MISSING_BOX_COLOR, "Pas de Gilet")
+
+            if person["gloves"]:
+                draw_detection_rectangle(
+                    annotated,
+                    person["gloves"]["box"],
+                    DETECTED_BOX_COLOR,
+                    f"Gants {person['gloves']['score']:.2f}",
+                )
+            else:
+                draw_detection_rectangle(annotated, left_hand_region, MISSING_BOX_COLOR, "Main")
+                draw_detection_rectangle(annotated, right_hand_region, MISSING_BOX_COLOR, "Main")
+
+            if person["goggles"]:
+                draw_detection_rectangle(
+                    annotated,
+                    person["goggles"]["box"],
+                    DETECTED_BOX_COLOR,
+                    f"Lunettes {person['goggles']['score']:.2f}",
+                )
+            else:
+                draw_detection_rectangle(annotated, eye_region, MISSING_BOX_COLOR, "Pas de Lunettes")
+
+            person_name = format_person_label(person["face"], language)
             label_lines = build_person_ppe_lines(
                 person_name,
                 person["helmet"],
                 person["vest"],
                 person["gloves"],
                 person["goggles"],
+                language=language,
             )
             draw_label_block(annotated, label_lines, (x1, y1), color, font_scale=0.6, thickness=2)
 
@@ -392,14 +543,14 @@ class PPECameraService:
 
         if primary:
             status["primary_person"] = {
-                "name": primary["face"]["name"] if primary["face"] else "Unknown Person",
+                "name": primary["face"]["name"] if primary["face"] else translate(language, "unknown_person"),
                 "name_confidence": round(float(primary["face"]["score"]), 3) if primary["face"] else None,
                 "confidence": round(primary["confidence"], 3),
                 "ppe": {
-                    "helmet": build_item_status("Helmet", primary["helmet"]),
-                    "vest": build_item_status("Vest", primary["vest"]),
-                    "gloves": build_item_status("Gloves", primary["gloves"]),
-                    "goggles": build_item_status("Goggles", primary["goggles"]),
+                    "helmet": build_item_status(translate(language, "helmet"), primary["helmet"]),
+                    "vest": build_item_status(translate(language, "vest"), primary["vest"]),
+                    "gloves": build_item_status(translate(language, "gloves"), primary["gloves"]),
+                    "goggles": build_item_status(translate(language, "goggles"), primary["goggles"]),
                 },
             }
 
@@ -413,6 +564,9 @@ class PPECameraService:
     def get_status(self):
         with self.frame_lock:
             return dict(self.latest_status)
+
+    def set_language(self, language):
+        self.current_language = language
 
 
 service = PPECameraService()
@@ -432,6 +586,7 @@ def health():
 
 @app.route("/api/status")
 def status():
+    service.set_language(get_language())
     return jsonify(service.get_status())
 
 
@@ -444,6 +599,7 @@ def branding_logo():
 
 @app.route("/api/frame")
 def frame():
+    service.set_language(get_language())
     latest_frame = service.get_frame()
     if latest_frame is None:
         abort(503, description="Camera frame is not ready yet.")
@@ -452,6 +608,7 @@ def frame():
 
 @app.route("/video_feed")
 def video_feed():
+    service.set_language(get_language())
     def generate():
         while True:
             frame = service.get_frame()
@@ -460,7 +617,12 @@ def video_feed():
                 continue
             yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
 
-    return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
+    response = Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    response.headers["X-Accel-Buffering"] = "no"
+    return response
 
 
 if __name__ == "__main__":

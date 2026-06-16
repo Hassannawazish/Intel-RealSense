@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
+import cameraPlaceholder from "./camera-placeholder.svg";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 const ppeCards = [
-  { key: "helmet", title: "Helmet", tone: "cyan" },
-  { key: "vest", title: "Vest", tone: "magenta" },
-  { key: "gloves", title: "Gloves", tone: "gold" },
-  { key: "goggles", title: "Goggles", tone: "orange" },
+  { key: "helmet", title: "Casque", tone: "cyan" },
+  { key: "vest", title: "Gilet", tone: "magenta" },
+  { key: "gloves", title: "Gants", tone: "gold" },
+  { key: "goggles", title: "Lunettes", tone: "orange" },
 ];
 
 function formatScore(score) {
@@ -21,10 +22,10 @@ function StatusCard({ title, status, tone }) {
   const detected = Boolean(status?.detected);
   return (
     <article className={`status-card tone-${tone} ${detected ? "is-on" : "is-off"}`}>
-      <div className="status-card__check">{detected ? "✓" : "•"}</div>
+      <div className="status-card__check">{detected ? "OK" : "-"}</div>
       <div className="status-card__body">
         <p className="status-card__title">{title}</p>
-        <p className="status-card__state">{detected ? "Detected" : "Missing"}</p>
+        <p className="status-card__state">{detected ? "Detecte" : "Absent"}</p>
       </div>
       <div className="status-card__score">{formatScore(status?.score)}</div>
     </article>
@@ -32,29 +33,29 @@ function StatusCard({ title, status, tone }) {
 }
 
 function AccessSwitch({ authorization, compact = false }) {
-  const requiredFrames = authorization?.required_frames ?? 3;
+  const requiredFrames = authorization?.required_frames ?? 2;
   const consecutiveFrames = authorization?.consecutive_frames ?? 0;
   const switchOn = Boolean(authorization?.switch_on);
   const knownPerson = Boolean(authorization?.known_person);
   const ppeComplete = Boolean(authorization?.ppe_complete);
 
-  let caption = "Waiting for a compliant, known worker.";
+  let caption = "En attente d'un travailleur connu et conforme.";
   if (switchOn) {
-    caption = `${authorization?.authorized_name || "Authorized worker"} validated. Door is open.`;
+    caption = `${authorization?.authorized_name || "Travailleur autorise"} valide. La porte est ouverte.`;
   } else if (knownPerson && !ppeComplete) {
-    caption = "Known person detected, but full PPE is not complete yet.";
+    caption = "Personne connue detectee, mais l'EPI complet n'est pas encore valide.";
   } else if (!knownPerson && ppeComplete) {
-    caption = "PPE is complete, but the person is not recognized yet.";
+    caption = "L'EPI est complet, mais la personne n'est pas encore reconnue.";
   } else if (knownPerson && ppeComplete) {
-    caption = "Authorization conditions are met. Holding steady for 3 consecutive frames.";
+    caption = "Les conditions d'autorisation sont remplies. Maintien sur 2 images consecutives.";
   }
 
   return (
     <section className={`access-switch ${switchOn ? "is-on" : "is-off"} ${compact ? "is-compact" : ""}`}>
       <div className="access-switch__header">
         <div>
-          <p className="panel__eyebrow">Entry Control</p>
-          <h3>{switchOn ? "Door Unlocked" : "Door Locked"}</h3>
+          <p className="panel__eyebrow">Controle d'acces</p>
+          <h3>{switchOn ? "Porte Deverrouillee" : "Porte Verrouillee"}</h3>
         </div>
         <div className={`switch-visual ${switchOn ? "is-on" : "is-off"}`} aria-hidden="true">
           <div className="switch-visual__track">
@@ -67,15 +68,15 @@ function AccessSwitch({ authorization, compact = false }) {
 
       <div className="access-switch__stats">
         <div className="access-chip">
-          <span>Known Person</span>
-          <strong>{knownPerson ? "Yes" : "No"}</strong>
+          <span>Personne Connue</span>
+          <strong>{knownPerson ? "Oui" : "Non"}</strong>
         </div>
         <div className="access-chip">
-          <span>Full PPE</span>
-          <strong>{ppeComplete ? "Yes" : "No"}</strong>
+          <span>EPI Complet</span>
+          <strong>{ppeComplete ? "Oui" : "Non"}</strong>
         </div>
         <div className="access-chip">
-          <span>Frame Streak</span>
+          <span>Serie d'Images</span>
           <strong>{formatFrameProgress(consecutiveFrames, requiredFrames)}</strong>
         </div>
       </div>
@@ -86,7 +87,7 @@ function AccessSwitch({ authorization, compact = false }) {
 export default function App() {
   const [status, setStatus] = useState({
     ready: false,
-    device: "loading",
+    device: "chargement",
     person_count: 0,
     primary_person: null,
     models: {
@@ -96,7 +97,7 @@ export default function App() {
     },
     error: null,
     authorization: {
-      required_frames: 3,
+      required_frames: 2,
       consecutive_frames: 0,
       eligible: false,
       known_person: false,
@@ -107,7 +108,6 @@ export default function App() {
       last_opened_at: null,
     },
   });
-  const [frameToken, setFrameToken] = useState(Date.now());
   const [logoToken, setLogoToken] = useState(Date.now());
 
   useEffect(() => {
@@ -131,18 +131,11 @@ export default function App() {
     };
 
     fetchStatus();
-    const timer = window.setInterval(fetchStatus, 750);
+    const timer = window.setInterval(fetchStatus, 400);
     return () => {
       mounted = false;
       window.clearInterval(timer);
     };
-  }, []);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setFrameToken(Date.now());
-    }, 250);
-    return () => window.clearInterval(timer);
   }, []);
 
   const primaryPpe = status.primary_person?.ppe ?? {};
@@ -163,7 +156,7 @@ export default function App() {
             <img
               className="brand-row__logo"
               src={`${API_BASE_URL}/api/branding/logo?t=${logoToken}`}
-              alt="SCAI Systems logo"
+              alt="Logo SCAI Systems"
               onError={() => {
                 window.setTimeout(() => {
                   setLogoToken(Date.now());
@@ -172,27 +165,27 @@ export default function App() {
             />
             <div className="brand-row__copy">
               <span className="eyebrow">SCAI Systems</span>
-              <p className="brand-row__tag">Industrial Vision Control</p>
+              <p className="brand-row__tag">Controle Visuel Industriel</p>
             </div>
           </div>
-          <h1>Worker Protection Monitoring Dashboard</h1>
+          <h1>Surveillance de la Protection des Travailleurs</h1>
           <p className="hero-text">
-            Live camera stream with real-time protection checks for helmet, vest, gloves, and goggles.
+            Flux camera en direct avec verification en temps reel du casque, du gilet, des gants et des lunettes.
           </p>
 
           <AccessSwitch authorization={authorization} compact />
 
           <div className="hero-metrics">
             <div className="metric-pill">
-              <span className="metric-pill__label">Device</span>
+              <span className="metric-pill__label">Appareil</span>
               <strong>{status.device}</strong>
             </div>
             <div className="metric-pill">
-              <span className="metric-pill__label">People In Frame</span>
+              <span className="metric-pill__label">Personnes a l'Ecran</span>
               <strong>{status.person_count}</strong>
             </div>
             <div className="metric-pill">
-              <span className="metric-pill__label">PPE Ready</span>
+              <span className="metric-pill__label">EPI Valides</span>
               <strong>{`${complianceCount}/4`}</strong>
             </div>
           </div>
@@ -201,20 +194,23 @@ export default function App() {
         <div className="stream-card">
           <div className="stream-card__header">
             <div>
-              <p className="stream-card__eyebrow">Live Stream</p>
-              <h2>Camera Feed</h2>
+              <p className="stream-card__eyebrow">Flux en Direct</p>
+              <h2>Vue Camera</h2>
             </div>
             <span className={`live-badge ${status.ready ? "is-live" : "is-waiting"}`}>
               <span className="live-dot" />
-              {status.ready ? "Live" : "Waiting"}
+              {status.ready ? "En Direct" : "En Attente"}
             </span>
           </div>
 
           <div className="stream-frame">
-            <img src={`${API_BASE_URL}/api/frame?t=${frameToken}`} alt="Live PPE camera feed" />
+            <img
+              src={status.ready ? `${API_BASE_URL}/video_feed` : cameraPlaceholder}
+              alt={status.ready ? "Flux camera EPI en direct" : "Illustration d'attente de la camera"}
+            />
             {!status.ready && (
               <div className="stream-frame__overlay">
-                <p>{status.error ? "Camera stream error" : "Waiting for camera frames..."}</p>
+                <p>{status.error ? "Erreur du flux camera" : "En attente des images camera..."}</p>
                 {status.error && <span>{status.error}</span>}
               </div>
             )}
@@ -225,30 +221,30 @@ export default function App() {
       <section className="dashboard-grid">
         <div className="panel panel--merged">
           <div className="panel__header">
-            <p className="panel__eyebrow">Primary Worker</p>
-            <h3>{status.primary_person?.name || "Protection Checklist"}</h3>
+            <p className="panel__eyebrow">Travailleur Principal</p>
+            <h3>{status.primary_person?.name || "Checklist de Protection"}</h3>
           </div>
 
           <div className="stack-list stack-list--inline">
             <div className="stack-row">
-              <span>Main PPE Logic</span>
-              <strong>{status.ready ? "Active" : "Starting"}</strong>
+              <span>Logique EPI Principale</span>
+              <strong>{status.ready ? "Active" : "Demarrage"}</strong>
             </div>
             <div className="stack-row">
-              <span>Helmet Model</span>
-              <strong>{status.models?.helmet ? "Loaded" : "Missing"}</strong>
+              <span>Modele Casque</span>
+              <strong>{status.models?.helmet ? "Charge" : "Absent"}</strong>
             </div>
             <div className="stack-row">
-              <span>Vest Model</span>
-              <strong>{status.models?.vest ? "Loaded" : "Missing"}</strong>
+              <span>Modele Gilet</span>
+              <strong>{status.models?.vest ? "Charge" : "Absent"}</strong>
             </div>
             <div className="stack-row">
-              <span>Gloves + Goggles</span>
-              <strong>{status.models?.accessory ? "Loaded" : "Missing"}</strong>
+              <span>Gants + Lunettes</span>
+              <strong>{status.models?.accessory ? "Charge" : "Absent"}</strong>
             </div>
             <div className="stack-row">
-              <span>Access Switch</span>
-              <strong>{authorization.switch_on ? "On" : "Off"}</strong>
+              <span>Interrupteur d'Acces</span>
+              <strong>{authorization.switch_on ? "Active" : "Desactive"}</strong>
             </div>
           </div>
 
@@ -264,20 +260,20 @@ export default function App() {
           </div>
 
           <div className="summary-card">
-            <p className="summary-card__eyebrow">Current Snapshot</p>
+            <p className="summary-card__eyebrow">Etat Actuel</p>
             <h4>
               {authorization.switch_on
-                ? `Door opened for ${authorization.authorized_name}`
+                ? `Porte ouverte pour ${authorization.authorized_name}`
                 : status.primary_person
                   ? status.primary_person.name
-                  : "No worker detected"}
+                  : "Aucun travailleur detecte"}
             </h4>
             <p>
               {authorization.switch_on
-                ? `Authorization completed after ${authorization.required_frames} compliant frames.`
+                ? `Autorisation validee apres ${authorization.required_frames} images conformes.`
                 : status.primary_person
-                ? `${status.primary_person.name_confidence ? `Face match ${formatScore(status.primary_person.name_confidence)}.` : ""} Detection confidence ${formatScore(status.primary_person.confidence)}`
-                : status.error || "Stand in front of the camera to populate the protection cards."}
+                  ? `${status.primary_person.name_confidence ? `Correspondance visage ${formatScore(status.primary_person.name_confidence)}.` : ""} Confiance de detection ${formatScore(status.primary_person.confidence)}`
+                  : status.error || "Placez-vous devant la camera pour remplir les cartes de protection."}
             </p>
           </div>
         </div>
