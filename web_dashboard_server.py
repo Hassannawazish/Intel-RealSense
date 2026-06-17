@@ -13,10 +13,19 @@ import pyrealsense2 as rs
 import torch
 from flask import Flask, Response, abort, jsonify, request, send_file
 
+try:
+    import serial
+    from serial import SerialException
+except ModuleNotFoundError:
+    serial = None
+    SerialException = Exception
+
 from display_utils import build_person_ppe_lines, draw_label_block
+from employee_face_sync import sync_employee_faces
 from helmet_detection import (
     detect_helmet_boxes,
     get_person_head_region,
+    get_intersection_area,
     load_yolo_model,
     match_helmet_to_person,
 )
@@ -58,9 +67,21 @@ WINDOW_SIZE = (1280, 720)
 KNOWN_FACES_ROOT = ROOT / "known_faces"
 FACE_MATCH_THRESHOLD = 0.3
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp"}
+SCREEN_DEVICE_CLASSES = {"cell phone", "tv", "laptop", "tablet", "monitor"}
 LOGO_PATH = ROOT / "logo" / "scailogo.png"
 AUTH_REQUIRED_FRAMES = 2
 DOOR_OPEN_SECONDS = 5.0
+KNOWN_FACES_SYNC_SECONDS = 15.0
+KNOWN_FACES_SOURCE = os.environ.get("KNOWN_FACES_SOURCE", "api").strip().lower()
+EMPLOYEE_API_URL = os.environ.get(
+    "EMPLOYEE_API_URL",
+    "https://scai-erp.tech/api/ppe-detection/employees?companyId=CEC276A2-0939-4F32-A228-DA6EAA9FCA57",
+).strip()
+EMPLOYEE_API_TIMEOUT_SECONDS = float(os.environ.get("EMPLOYEE_API_TIMEOUT_SECONDS", "20.0"))
+ARDUINO_ENABLED = os.environ.get("ARDUINO_ENABLED", "1").strip().lower() not in {"0", "false", "no"}
+ARDUINO_PORT = os.environ.get("ARDUINO_PORT", "COM3").strip()
+ARDUINO_BAUDRATE = int(os.environ.get("ARDUINO_BAUDRATE", "9600"))
+ARDUINO_TIMEOUT_SECONDS = float(os.environ.get("ARDUINO_TIMEOUT_SECONDS", "1.0"))
 SUPPORTED_LANGUAGES = {"en", "fr", "es"}
 
 BACKEND_TRANSLATIONS = {
@@ -213,10 +234,44 @@ def recognize_faces(frame, language):
                 "name": name,
                 "score": score,
                 "box": (left, top, right, bottom),
+                "is_spoof": False,
             }
         )
 
     return recognized_faces
+
+
+def extract_screen_boxes(detections, names):
+    screen_boxes = []
+    for x1, y1, x2, y2, conf, cls in detections:
+        class_name = names[int(cls)]
+        if class_name in SCREEN_DEVICE_CLASSES:
+            screen_boxes.append((int(x1), int(y1), int(x2), int(y2)))
+    return screen_boxes
+
+
+def flag_spoof_faces(recognized_faces, screen_boxes):
+    for face in recognized_faces:
+        face_box = face["box"]
+        face_area = max(1, (face_box[2] - face_box[0]) * (face_box[3] - face_box[1]))
+        center_x = (face_box[0] + face_box[2]) // 2
+        center_y = (face_box[1] + face_box[3]) // 2
+
+        for screen_box in screen_boxes:
+            center_inside_screen = (
+                screen_box[0] <= center_x <= screen_box[2] and screen_box[1] <= center_y <= screen_box[3]
+            )
+            overlap_ratio = get_intersection_area(face_box, screen_box) / face_area
+            if center_inside_screen or overlap_ratio >= 0.35:
+                face["is_spoof"] = True
+                break
+
+
+def screen_has_spoof_face(screen_box, recognized_faces):
+    for face in recognized_faces:
+        if face["is_spoof"] and get_intersection_area(screen_box, face["box"]) > 0:
+            return True
+    return False
 
 
 def get_person_match(person_box, recognized_faces):
@@ -233,6 +288,8 @@ def get_person_match(person_box, recognized_faces):
 def format_person_label(face, language):
     if face is None:
         return translate(language, "unknown_person")
+    if face.get("is_spoof"):
+        return "Threat"
     if face["name"] == translate(language, "unknown_person"):
         return face["name"]
     return f'{face["name"]}: {face["score"]:.2f}'
@@ -253,11 +310,16 @@ class PPECameraService:
         self.door_open_until = 0.0
         self.last_opened_at = None
         self.last_authorized_name = None
+        self.arduino = None
+        self.arduino_switch_on = False
+        self.last_known_faces_sync = 0.0
         self.latest_status = {
             "ready": False,
             "device": self.device,
             "person_count": 0,
             "primary_person": None,
+            "threat_detected": False,
+            "threat_count": 0,
             "models": {
                 "helmet": False,
                 "vest": False,
@@ -291,7 +353,9 @@ class PPECameraService:
         return model
 
     def load_models(self):
+        self._sync_known_faces_source(force=True, reload_faces=False)
         prepare_known_faces(KNOWN_FACES_ROOT)
+        self.last_known_faces_sync = time.time()
         self.object_model = self._prepare_model(
             load_yolo_model(YOLO_REPO_DIR, device=self.device, model_name=OBJECT_MODEL_NAME)
         )
@@ -320,6 +384,7 @@ class PPECameraService:
 
     def start(self):
         self.load_models()
+        self._connect_arduino()
         self.pipeline = rs.pipeline()
         config = rs.config()
         config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
@@ -333,10 +398,13 @@ class PPECameraService:
             self._thread.join(timeout=2)
         if self.pipeline:
             self.pipeline.stop()
+        self._set_arduino_switch(False)
+        self._close_arduino()
 
     def _run_loop(self):
         while not self._stop_event.is_set():
             try:
+                self._refresh_known_faces_if_needed()
                 frames = self.pipeline.wait_for_frames()
                 color_frame = frames.get_color_frame()
                 if not color_frame:
@@ -362,8 +430,101 @@ class PPECameraService:
                     }
                 time.sleep(0.1)
 
+    def _refresh_known_faces_if_needed(self):
+        now = time.time()
+        if now - self.last_known_faces_sync < KNOWN_FACES_SYNC_SECONDS:
+            return
+
+        self.last_known_faces_sync = now
+        self._sync_known_faces_source(force=False, reload_faces=True)
+
+    def _sync_known_faces_source(self, force, reload_faces):
+        if KNOWN_FACES_SOURCE != "api":
+            return
+        if not EMPLOYEE_API_URL:
+            print("[FACES] Employee API URL is empty, skipping remote face sync.")
+            return
+
+        try:
+            summary = sync_employee_faces(
+                EMPLOYEE_API_URL,
+                KNOWN_FACES_ROOT,
+                timeout_seconds=EMPLOYEE_API_TIMEOUT_SECONDS,
+            )
+            if force:
+                print(
+                    f"[FACES] Synced {summary['employee_count']} employees and {summary['image_count']} images from employee API"
+                )
+            if not reload_faces or not summary["has_changes"]:
+                return
+
+            prepare_known_faces(KNOWN_FACES_ROOT)
+            print(
+                f"[FACES] Sync applied: +{summary['created_folders']} folders, +{summary['downloaded_images']} images, "
+                f"-{summary['removed_folders']} folders, -{summary['removed_images']} images"
+            )
+        except Exception as exc:
+            if force:
+                raise
+            print(f"[FACES] Remote sync skipped: {exc}")
+
+    def _connect_arduino(self):
+        if not ARDUINO_ENABLED:
+            print("[ARDUINO] Disabled")
+            return
+        if serial is None:
+            print("[ARDUINO] pyserial is not installed. Run `python -m pip install -r .\\requirements_web_dashboard.txt`.")
+            return
+        if not ARDUINO_PORT:
+            print("[ARDUINO] No serial port configured.")
+            return
+
+        try:
+            self.arduino = serial.Serial(ARDUINO_PORT, ARDUINO_BAUDRATE, timeout=ARDUINO_TIMEOUT_SECONDS)
+            time.sleep(2.0)
+            print(f"[ARDUINO] Connected on {ARDUINO_PORT} at {ARDUINO_BAUDRATE} baud")
+            self._write_arduino_command("OFF")
+            self.arduino_switch_on = False
+        except SerialException as exc:
+            self.arduino = None
+            print(f"[ARDUINO] Connection failed on {ARDUINO_PORT}: {exc}")
+
+    def _close_arduino(self):
+        if self.arduino is None:
+            return
+        try:
+            if self.arduino.is_open:
+                self.arduino.close()
+        finally:
+            self.arduino = None
+
+    def _write_arduino_command(self, command):
+        if self.arduino is None:
+            return
+        try:
+            self.arduino.write(f"{command}\n".encode("utf-8"))
+            self.arduino.flush()
+        except SerialException as exc:
+            print(f"[ARDUINO] Write failed: {exc}")
+            self._close_arduino()
+
+    def _set_arduino_switch(self, switch_on):
+        switch_on = bool(switch_on)
+        if switch_on == self.arduino_switch_on:
+            return
+
+        if self.arduino is None and ARDUINO_ENABLED:
+            self._connect_arduino()
+
+        self._write_arduino_command("ON" if switch_on else "OFF")
+        self.arduino_switch_on = switch_on
+
     def _is_known_person(self, face_match, language):
-        return bool(face_match and face_match["name"] != translate(language, "unknown_person"))
+        return bool(
+            face_match
+            and not face_match.get("is_spoof")
+            and face_match["name"] != translate(language, "unknown_person")
+        )
 
     def _update_authorization_state(self, primary_person, language):
         now = time.time()
@@ -389,6 +550,7 @@ class PPECameraService:
             self._trigger_door_open(self.last_authorized_name, language)
 
         switch_on = now < self.door_open_until
+        self._set_arduino_switch(switch_on)
         return {
             "required_frames": AUTH_REQUIRED_FRAMES,
             "consecutive_frames": self.authorized_streak,
@@ -411,6 +573,8 @@ class PPECameraService:
             results = self.object_model(frame, size=OBJECT_IMAGE_SIZE)
         detections = results.xyxy[0].cpu().numpy()
         names = results.names
+        screen_boxes = extract_screen_boxes(detections, names)
+        flag_spoof_faces(recognized_faces, screen_boxes)
 
         helmet_detections = detect_helmet_boxes(self.helmet_model, frame, image_size=HELMET_IMAGE_SIZE) if self.helmet_model else []
         vest_detections = (
@@ -458,8 +622,13 @@ class PPECameraService:
 
         for person in persons:
             x1, y1, x2, y2 = person["box"]
+            person_name = format_person_label(person["face"], language)
+            is_threat = person_name == "Threat"
             all_ppe = person["helmet"] and person["vest"] and person["gloves"] and person["goggles"]
-            color = (0, 200, 0) if all_ppe else (0, 165, 255)
+            if is_threat:
+                color = (0, 0, 255)
+            else:
+                color = (0, 200, 0) if all_ppe else (0, 165, 255)
             cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
 
             face_region = get_person_face_region(person["box"])
@@ -519,21 +688,32 @@ class PPECameraService:
             else:
                 draw_detection_rectangle(annotated, eye_region, MISSING_BOX_COLOR, "Pas de Lunettes")
 
-            person_name = format_person_label(person["face"], language)
-            label_lines = build_person_ppe_lines(
-                person_name,
-                person["helmet"],
-                person["vest"],
-                person["gloves"],
-                person["goggles"],
-                language=language,
+            label_lines = (
+                ["Threat"]
+                if is_threat
+                else build_person_ppe_lines(
+                    person_name,
+                    person["helmet"],
+                    person["vest"],
+                    person["gloves"],
+                    person["goggles"],
+                    language=language,
+                )
             )
             draw_label_block(annotated, label_lines, (x1, y1), color, font_scale=0.6, thickness=2)
+
+        for x1, y1, x2, y2, conf, cls in detections:
+            class_name = names[int(cls)]
+            current_box = (int(x1), int(y1), int(x2), int(y2))
+            if class_name in SCREEN_DEVICE_CLASSES and screen_has_spoof_face(current_box, recognized_faces):
+                draw_detection_rectangle(annotated, current_box, (0, 0, 255), "Threat")
 
         status = {
             "ready": True,
             "device": self.device,
             "person_count": len(persons),
+            "threat_detected": any(face.get("is_spoof") for face in recognized_faces),
+            "threat_count": sum(1 for face in recognized_faces if face.get("is_spoof")),
             "updated_at": time.time(),
             "models": self.latest_status["models"],
             "primary_person": None,
@@ -542,9 +722,14 @@ class PPECameraService:
         }
 
         if primary:
+            primary_name = format_person_label(primary["face"], language)
             status["primary_person"] = {
-                "name": primary["face"]["name"] if primary["face"] else translate(language, "unknown_person"),
-                "name_confidence": round(float(primary["face"]["score"]), 3) if primary["face"] else None,
+                "name": primary_name,
+                "name_confidence": (
+                    round(float(primary["face"]["score"]), 3)
+                    if primary["face"] and not primary["face"].get("is_spoof")
+                    else None
+                ),
                 "confidence": round(primary["confidence"], 3),
                 "ppe": {
                     "helmet": build_item_status(translate(language, "helmet"), primary["helmet"]),

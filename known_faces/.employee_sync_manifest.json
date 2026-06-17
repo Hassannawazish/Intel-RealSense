@@ -1,0 +1,10 @@
+{
+  "api_url": "https://scai-erp.tech/api/ppe-detection/employees?companyId=CEC276A2-0939-4F32-A228-DA6EAA9FCA57",
+  "managed_folders": [
+    "Ahmed",
+    "Khalil",
+    "Nawazish"
+  ],
+  "employee_count": 3,
+  "image_count": 12
+}

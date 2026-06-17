@@ -32,6 +32,21 @@ function StatusCard({ title, status, tone }) {
   );
 }
 
+function ThreatCard({ detected, count }) {
+  return (
+    <article className={`threat-card ${detected ? "is-alert" : "is-clear"}`}>
+      <div className="threat-card__badge">{detected ? "!" : "OK"}</div>
+      <div className="threat-card__body">
+        <p className="threat-card__title">Threat Detected</p>
+        <p className="threat-card__state">
+          {detected ? "Mobile or screen spoof attempt detected" : "No spoofing threat detected"}
+        </p>
+      </div>
+      <div className="threat-card__count">{count || 0}</div>
+    </article>
+  );
+}
+
 function AccessSwitch({ authorization, compact = false }) {
   const requiredFrames = authorization?.required_frames ?? 2;
   const consecutiveFrames = authorization?.consecutive_frames ?? 0;
@@ -90,6 +105,8 @@ export default function App() {
     device: "chargement",
     person_count: 0,
     primary_person: null,
+    threat_detected: false,
+    threat_count: 0,
     models: {
       helmet: false,
       vest: false,
@@ -168,7 +185,7 @@ export default function App() {
               <p className="brand-row__tag">Controle Visuel Industriel</p>
             </div>
           </div>
-          <h1>Surveillance de la Protection des Travailleurs</h1>
+          <h1>Surveillance de la Protection des collaborateurs</h1>
           <p className="hero-text">
             Flux camera en direct avec verification en temps reel du casque, du gilet, des gants et des lunettes.
           </p>
@@ -225,6 +242,8 @@ export default function App() {
             <h3>{status.primary_person?.name || "Checklist de Protection"}</h3>
           </div>
 
+          <ThreatCard detected={status.threat_detected} count={status.threat_count} />
+
           <div className="stack-list stack-list--inline">
             <div className="stack-row">
               <span>Logique EPI Principale</span>
@@ -262,14 +281,18 @@ export default function App() {
           <div className="summary-card">
             <p className="summary-card__eyebrow">Etat Actuel</p>
             <h4>
-              {authorization.switch_on
+              {status.threat_detected
+                ? "Threat detected on mobile or screen"
+                : authorization.switch_on
                 ? `Porte ouverte pour ${authorization.authorized_name}`
                 : status.primary_person
                   ? status.primary_person.name
                   : "Aucun travailleur detecte"}
             </h4>
             <p>
-              {authorization.switch_on
+              {status.threat_detected
+                ? `${status.threat_count || 0} spoof attempt(s) detected. Access remains blocked until a real face is seen.`
+                : authorization.switch_on
                 ? `Autorisation validee apres ${authorization.required_frames} images conformes.`
                 : status.primary_person
                   ? `${status.primary_person.name_confidence ? `Correspondance visage ${formatScore(status.primary_person.name_confidence)}.` : ""} Confiance de detection ${formatScore(status.primary_person.confidence)}`
