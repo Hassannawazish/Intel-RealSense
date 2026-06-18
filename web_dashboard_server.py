@@ -14,6 +14,14 @@ import torch
 from flask import Flask, Response, abort, jsonify, request, send_file
 
 try:
+    import winsound
+except ImportError:
+    winsound = None
+
+if hasattr(torch.backends, "cudnn"):
+    torch.backends.cudnn.benchmark = True
+
+try:
     import serial
     from serial import SerialException
 except ModuleNotFoundError:
@@ -56,14 +64,18 @@ except ModuleNotFoundError as exc:
 ROOT = Path(__file__).resolve().parent
 YOLO_REPO_DIR = ROOT / "yolov5"
 OBJECT_MODEL_NAME = "yolov5n"
-OBJECT_IMAGE_SIZE = 416
+OBJECT_IMAGE_SIZE = 352
 HELMET_WEIGHTS = ROOT / "weights" / "helmet_best.pt"
-HELMET_IMAGE_SIZE = 416
+HELMET_IMAGE_SIZE = 352
 SAFETY_VEST_WEIGHTS = ROOT / "weights" / "safety_vest_best.pt"
-SAFETY_VEST_IMAGE_SIZE = 416
+SAFETY_VEST_IMAGE_SIZE = 352
 ACCESSORY_WEIGHTS = ROOT / "external_models" / "epoch30.pt"
-ACCESSORY_IMAGE_SIZE = 416
-WINDOW_SIZE = (1280, 720)
+ACCESSORY_IMAGE_SIZE = 352
+WINDOW_SIZE = (960, 540)
+JPEG_QUALITY = 70
+OBJECT_DETECTION_INTERVAL = 3
+PPE_DETECTION_INTERVAL = 3
+FACE_RECOGNITION_INTERVAL = 5
 KNOWN_FACES_ROOT = ROOT / "known_faces"
 FACE_MATCH_THRESHOLD = 0.3
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp"}
@@ -73,6 +85,11 @@ AUTH_REQUIRED_FRAMES = 2
 DOOR_OPEN_SECONDS = 5.0
 KNOWN_FACES_SYNC_SECONDS = 15.0
 KNOWN_FACES_SOURCE = os.environ.get("KNOWN_FACES_SOURCE", "api").strip().lower()
+KNOWN_FACES_RUNTIME_SYNC_ENABLED = os.environ.get("KNOWN_FACES_RUNTIME_SYNC_ENABLED", "0").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+}
 EMPLOYEE_API_URL = os.environ.get(
     "EMPLOYEE_API_URL",
     "https://scai-erp.tech/api/ppe-detection/employees?companyId=CEC276A2-0939-4F32-A228-DA6EAA9FCA57",
@@ -313,6 +330,15 @@ class PPECameraService:
         self.arduino = None
         self.arduino_switch_on = False
         self.last_known_faces_sync = 0.0
+        self.frame_index = 0
+        self.cached_faces = []
+        self.cached_person_detections = np.empty((0, 6), dtype=np.float32)
+        self.cached_detection_names = {}
+        self.cached_screen_boxes = []
+        self.cached_helmet_detections = []
+        self.cached_vest_detections = []
+        self.cached_glove_detections = []
+        self.cached_goggle_detections = []
         self.latest_status = {
             "ready": False,
             "device": self.device,
@@ -404,8 +430,14 @@ class PPECameraService:
     def _run_loop(self):
         while not self._stop_event.is_set():
             try:
-                self._refresh_known_faces_if_needed()
+                if KNOWN_FACES_RUNTIME_SYNC_ENABLED:
+                    self._refresh_known_faces_if_needed()
                 frames = self.pipeline.wait_for_frames()
+                while True:
+                    latest_frames = self.pipeline.poll_for_frames()
+                    if not latest_frames:
+                        break
+                    frames = latest_frames
                 color_frame = frames.get_color_frame()
                 if not color_frame:
                     continue
@@ -413,7 +445,7 @@ class PPECameraService:
                 frame = np.asanyarray(color_frame.get_data())
                 language = self.current_language
                 annotated_frame, status = self._process_frame(frame, language)
-                ok, encoded = cv2.imencode(".jpg", annotated_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
+                ok, encoded = cv2.imencode(".jpg", annotated_frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY])
                 if not ok:
                     continue
 
@@ -565,27 +597,62 @@ class PPECameraService:
 
     def _trigger_door_open(self, person_name, language):
         # Placeholder hook for real door hardware integration.
+        if winsound is not None:
+            try:
+                winsound.Beep(1800, 350)
+                winsound.Beep(2200, 350)
+            except RuntimeError:
+                pass
         print(BACKEND_TRANSLATIONS.get(language, BACKEND_TRANSLATIONS["en"])["door_triggered"].format(name=person_name))
 
     def _process_frame(self, frame, language):
-        recognized_faces = recognize_faces(frame, language)
-        with torch.inference_mode():
-            results = self.object_model(frame, size=OBJECT_IMAGE_SIZE)
-        detections = results.xyxy[0].cpu().numpy()
-        names = results.names
-        screen_boxes = extract_screen_boxes(detections, names)
+        self.frame_index += 1
+
+        if self.frame_index % FACE_RECOGNITION_INTERVAL == 1 or not self.cached_faces:
+            self.cached_faces = recognize_faces(frame, language)
+        recognized_faces = [dict(face) for face in self.cached_faces]
+
+        if self.frame_index % OBJECT_DETECTION_INTERVAL == 1 or len(self.cached_person_detections) == 0:
+            with torch.inference_mode():
+                results = self.object_model(frame, size=OBJECT_IMAGE_SIZE)
+            detections = results.xyxy[0].cpu().numpy()
+            names = results.names
+            self.cached_detection_names = names
+            self.cached_person_detections = detections
+            self.cached_screen_boxes = extract_screen_boxes(detections, names)
+        else:
+            detections = self.cached_person_detections
+            names = self.cached_detection_names
+
+        screen_boxes = self.cached_screen_boxes
         flag_spoof_faces(recognized_faces, screen_boxes)
 
-        helmet_detections = detect_helmet_boxes(self.helmet_model, frame, image_size=HELMET_IMAGE_SIZE) if self.helmet_model else []
-        vest_detections = (
-            detect_safety_vest_boxes(self.vest_model, frame, image_size=SAFETY_VEST_IMAGE_SIZE) if self.vest_model else []
-        )
-        glove_detections = (
-            detect_glove_boxes(self.accessory_model, frame, image_size=ACCESSORY_IMAGE_SIZE) if self.accessory_model else []
-        )
-        goggle_detections = (
-            detect_goggle_boxes(self.accessory_model, frame, image_size=ACCESSORY_IMAGE_SIZE) if self.accessory_model else []
-        )
+        if self.frame_index % PPE_DETECTION_INTERVAL == 1 or (
+            self.cached_helmet_detections is None and self.cached_vest_detections is None
+        ):
+            self.cached_helmet_detections = (
+                detect_helmet_boxes(self.helmet_model, frame, image_size=HELMET_IMAGE_SIZE) if self.helmet_model else []
+            )
+            self.cached_vest_detections = (
+                detect_safety_vest_boxes(self.vest_model, frame, image_size=SAFETY_VEST_IMAGE_SIZE)
+                if self.vest_model
+                else []
+            )
+            self.cached_glove_detections = (
+                detect_glove_boxes(self.accessory_model, frame, image_size=ACCESSORY_IMAGE_SIZE)
+                if self.accessory_model
+                else []
+            )
+            self.cached_goggle_detections = (
+                detect_goggle_boxes(self.accessory_model, frame, image_size=ACCESSORY_IMAGE_SIZE)
+                if self.accessory_model
+                else []
+            )
+
+        helmet_detections = self.cached_helmet_detections
+        vest_detections = self.cached_vest_detections
+        glove_detections = self.cached_glove_detections
+        goggle_detections = self.cached_goggle_detections
 
         annotated = frame.copy()
         persons = []
