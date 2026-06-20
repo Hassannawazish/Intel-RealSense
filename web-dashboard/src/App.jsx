@@ -25,7 +25,7 @@ function StatusCard({ title, status, tone }) {
       <div className="status-card__check">{detected ? "OK" : "-"}</div>
       <div className="status-card__body">
         <p className="status-card__title">{title}</p>
-        <p className="status-card__state">{detected ? "Detecte" : "Absent"}</p>
+        <p className="status-card__state">{detected ? "Détecté" : "Absent"}</p>
       </div>
       <div className="status-card__score">{formatScore(status?.score)}</div>
     </article>
@@ -37,9 +37,9 @@ function ThreatCard({ detected, count }) {
     <article className={`threat-card ${detected ? "is-alert" : "is-clear"}`}>
       <div className="threat-card__badge">{detected ? "!" : "OK"}</div>
       <div className="threat-card__body">
-        <p className="threat-card__title">Threat Detected</p>
+        <p className="threat-card__title">Menace détectée</p>
         <p className="threat-card__state">
-          {detected ? "Mobile or screen spoof attempt detected" : "No spoofing threat detected"}
+          {detected ? "Tentative d'usurpation détectée sur mobile ou écran" : "Aucune tentative d'usurpation détectée"}
         </p>
       </div>
       <div className="threat-card__count">{count || 0}</div>
@@ -56,21 +56,21 @@ function AccessSwitch({ authorization, compact = false }) {
 
   let caption = "En attente d'un travailleur connu et conforme.";
   if (switchOn) {
-    caption = `${authorization?.authorized_name || "Travailleur autorise"} valide. La porte est ouverte.`;
+    caption = `${authorization?.authorized_name || "Collaborateur autorisé"} validé. La porte est ouverte.`;
   } else if (knownPerson && !ppeComplete) {
-    caption = "Personne connue detectee, mais l'EPI complet n'est pas encore valide.";
+    caption = "Personne connue détectée, mais l'ÉPI complet n'est pas encore validé.";
   } else if (!knownPerson && ppeComplete) {
-    caption = "L'EPI est complet, mais la personne n'est pas encore reconnue.";
+    caption = "L'ÉPI est complet, mais la personne n'est pas encore reconnue.";
   } else if (knownPerson && ppeComplete) {
-    caption = "Les conditions d'autorisation sont remplies. Maintien sur 2 images consecutives.";
+    caption = "Les conditions d'autorisation sont remplies. Maintien sur 2 images consécutives.";
   }
 
   return (
     <section className={`access-switch ${switchOn ? "is-on" : "is-off"} ${compact ? "is-compact" : ""}`}>
       <div className="access-switch__header">
         <div>
-          <p className="panel__eyebrow">Controle d'acces</p>
-          <h3>{switchOn ? "Porte Deverrouillee" : "Porte Verrouillee"}</h3>
+          <p className="panel__eyebrow">Contrôle d'accès</p>
+          <h3>{switchOn ? "Porte déverrouillée" : "Porte verrouillée"}</h3>
         </div>
         <div className={`switch-visual ${switchOn ? "is-on" : "is-off"}`} aria-hidden="true">
           <div className="switch-visual__track">
@@ -87,11 +87,11 @@ function AccessSwitch({ authorization, compact = false }) {
           <strong>{knownPerson ? "Oui" : "Non"}</strong>
         </div>
         <div className="access-chip">
-          <span>EPI Complet</span>
+          <span>ÉPI complet</span>
           <strong>{ppeComplete ? "Oui" : "Non"}</strong>
         </div>
         <div className="access-chip">
-          <span>Serie d'Images</span>
+          <span>Série d'images</span>
           <strong>{formatFrameProgress(consecutiveFrames, requiredFrames)}</strong>
         </div>
       </div>
@@ -182,12 +182,12 @@ export default function App() {
             />
             <div className="brand-row__copy">
               <span className="eyebrow">SCAI Systems</span>
-              <p className="brand-row__tag">Controle Visuel Industriel</p>
+              <p className="brand-row__tag">Contrôle visuel industriel</p>
             </div>
           </div>
           <h1>Surveillance de la Protection des collaborateurs</h1>
           <p className="hero-text">
-            Flux camera en direct avec verification en temps reel du casque, du gilet, des gants et des lunettes.
+            Flux caméra en direct avec vérification en temps réel du casque, du gilet, des gants et des lunettes.
           </p>
 
           <AccessSwitch authorization={authorization} compact />
@@ -198,11 +198,11 @@ export default function App() {
               <strong>{status.device}</strong>
             </div>
             <div className="metric-pill">
-              <span className="metric-pill__label">Personnes a l'Ecran</span>
+              <span className="metric-pill__label">Personnes à l'écran</span>
               <strong>{status.person_count}</strong>
             </div>
             <div className="metric-pill">
-              <span className="metric-pill__label">EPI Valides</span>
+              <span className="metric-pill__label">ÉPI validés</span>
               <strong>{`${complianceCount}/4`}</strong>
             </div>
           </div>
@@ -211,23 +211,23 @@ export default function App() {
         <div className="stream-card">
           <div className="stream-card__header">
             <div>
-              <p className="stream-card__eyebrow">Flux en Direct</p>
-              <h2>Vue Camera</h2>
+              <p className="stream-card__eyebrow">Flux en direct</p>
+              <h2>Vue caméra</h2>
             </div>
             <span className={`live-badge ${status.ready ? "is-live" : "is-waiting"}`}>
               <span className="live-dot" />
-              {status.ready ? "En Direct" : "En Attente"}
+              {status.ready ? "En direct" : "En attente"}
             </span>
           </div>
 
           <div className="stream-frame">
             <img
               src={status.ready ? `${API_BASE_URL}/video_feed` : cameraPlaceholder}
-              alt={status.ready ? "Flux camera EPI en direct" : "Illustration d'attente de la camera"}
+              alt={status.ready ? "Flux caméra ÉPI en direct" : "Illustration d'attente de la caméra"}
             />
             {!status.ready && (
               <div className="stream-frame__overlay">
-                <p>{status.error ? "Erreur du flux camera" : "En attente des images camera..."}</p>
+                <p>{status.error ? "Erreur du flux caméra" : "En attente des images caméra..."}</p>
                 {status.error && <span>{status.error}</span>}
               </div>
             )}
@@ -238,32 +238,32 @@ export default function App() {
       <section className="dashboard-grid">
         <div className="panel panel--merged">
           <div className="panel__header">
-            <p className="panel__eyebrow">Travailleur Principal</p>
-            <h3>{status.primary_person?.name || "Checklist de Protection"}</h3>
+            <p className="panel__eyebrow">Collaborateur principal</p>
+            <h3>{status.primary_person?.name || "Checklist de protection"}</h3>
           </div>
 
           <ThreatCard detected={status.threat_detected} count={status.threat_count} />
 
           <div className="stack-list stack-list--inline">
             <div className="stack-row">
-              <span>Logique EPI Principale</span>
-              <strong>{status.ready ? "Active" : "Demarrage"}</strong>
+              <span>Logique ÉPI principale</span>
+              <strong>{status.ready ? "Active" : "Démarrage"}</strong>
             </div>
             <div className="stack-row">
-              <span>Modele Casque</span>
-              <strong>{status.models?.helmet ? "Charge" : "Absent"}</strong>
+              <span>Modèle casque</span>
+              <strong>{status.models?.helmet ? "Chargé" : "Absent"}</strong>
             </div>
             <div className="stack-row">
-              <span>Modele Gilet</span>
-              <strong>{status.models?.vest ? "Charge" : "Absent"}</strong>
+              <span>Modèle gilet</span>
+              <strong>{status.models?.vest ? "Chargé" : "Absent"}</strong>
             </div>
             <div className="stack-row">
               <span>Gants + Lunettes</span>
-              <strong>{status.models?.accessory ? "Charge" : "Absent"}</strong>
+              <strong>{status.models?.accessory ? "Chargé" : "Absent"}</strong>
             </div>
             <div className="stack-row">
-              <span>Interrupteur d'Acces</span>
-              <strong>{authorization.switch_on ? "Active" : "Desactive"}</strong>
+              <span>Interrupteur d'accès</span>
+              <strong>{authorization.switch_on ? "Activé" : "Désactivé"}</strong>
             </div>
           </div>
 
@@ -279,24 +279,24 @@ export default function App() {
           </div>
 
           <div className="summary-card">
-            <p className="summary-card__eyebrow">Etat Actuel</p>
+            <p className="summary-card__eyebrow">État actuel</p>
             <h4>
               {status.threat_detected
-                ? "Threat detected on mobile or screen"
+                ? "Menace détectée sur mobile ou écran"
                 : authorization.switch_on
                 ? `Porte ouverte pour ${authorization.authorized_name}`
                 : status.primary_person
                   ? status.primary_person.name
-                  : "Aucun travailleur detecte"}
+                  : "Aucun collaborateur détecté"}
             </h4>
             <p>
               {status.threat_detected
-                ? `${status.threat_count || 0} spoof attempt(s) detected. Access remains blocked until a real face is seen.`
+                ? `${status.threat_count || 0} tentative(s) d'usurpation détectée(s). L'accès reste bloqué jusqu'à la détection d'un vrai visage.`
                 : authorization.switch_on
-                ? `Autorisation validee apres ${authorization.required_frames} images conformes.`
+                ? `Autorisation validée après ${authorization.required_frames} images conformes.`
                 : status.primary_person
-                  ? `${status.primary_person.name_confidence ? `Correspondance visage ${formatScore(status.primary_person.name_confidence)}.` : ""} Confiance de detection ${formatScore(status.primary_person.confidence)}`
-                  : status.error || "Placez-vous devant la camera pour remplir les cartes de protection."}
+                  ? `${status.primary_person.name_confidence ? `Correspondance du visage ${formatScore(status.primary_person.name_confidence)}.` : ""} Confiance de détection ${formatScore(status.primary_person.confidence)}`
+                  : status.error || "Placez-vous devant la caméra pour renseigner les cartes de protection."}
             </p>
           </div>
         </div>

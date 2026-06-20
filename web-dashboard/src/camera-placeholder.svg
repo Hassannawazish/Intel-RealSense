@@ -13,10 +13,10 @@
   <rect x="164" y="612" width="184" height="16" rx="8" fill="#34CFFF"/>
   <rect x="854" y="612" width="262" height="16" rx="8" fill="#16304F"/>
   <text x="640" y="634" text-anchor="middle" fill="#E7F1FF" font-family="Arial, sans-serif" font-size="42" font-weight="700">
-    Camera en attente
+    Caméra en attente
   </text>
   <text x="640" y="676" text-anchor="middle" fill="#9FC2E4" font-family="Arial, sans-serif" font-size="22">
-    Le flux video apparaitra ici des l'activation de la camera
+    Le flux vidéo apparaîtra ici dès l'activation de la caméra
   </text>
   <defs>
     <radialGradient id="paint0_radial" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(210 108) rotate(33.14) scale(723.161 587.359)">
