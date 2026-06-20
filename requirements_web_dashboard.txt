@@ -6,5 +6,6 @@ torch
 ultralytics
 onnxruntime
 facial_recognition
+mediapipe
 pyserial
 requests

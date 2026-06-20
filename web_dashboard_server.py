@@ -485,7 +485,8 @@ class PPECameraService:
             )
             if force:
                 print(
-                    f"[FACES] Synced {summary['employee_count']} employees and {summary['image_count']} images from employee API"
+                    f"[FACES] Synced {summary['employee_count']} employees and {summary['image_count']} images "
+                    f"from employee API ({summary['skipped_images']} skipped)"
                 )
             if not reload_faces or not summary["has_changes"]:
                 return

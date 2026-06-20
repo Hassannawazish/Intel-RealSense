@@ -14,6 +14,11 @@ except ModuleNotFoundError as exc:
 RAW_PAYLOAD_FILENAME = "raw.json"
 MANIFEST_FILENAME = ".employee_sync_manifest.json"
 INVALID_PATH_CHARS = re.compile(r'[<>:"/\\|?*]+')
+DOWNLOAD_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+    "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+}
 
 
 def sanitize_folder_name(value, fallback):
@@ -118,15 +123,39 @@ def build_employee_entries(payload):
     return entries
 
 
-def download_file(url, destination, timeout_seconds):
-    response = requests.get(url, stream=True, timeout=timeout_seconds)
-    response.raise_for_status()
+def build_download_candidates(url):
+    candidates = [url]
+    if url.startswith("http://"):
+        candidates.append("https://" + url[len("http://") :])
+    elif url.startswith("https://"):
+        candidates.append("http://" + url[len("https://") :])
+    return candidates
 
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    with destination.open("wb") as file_handle:
-        for chunk in response.iter_content(chunk_size=8192):
-            if chunk:
-                file_handle.write(chunk)
+
+def download_file(url, destination, timeout_seconds):
+    last_error = None
+
+    for candidate_url in build_download_candidates(url):
+        try:
+            response = requests.get(
+                candidate_url,
+                stream=True,
+                timeout=timeout_seconds,
+                headers={**DOWNLOAD_HEADERS, "Referer": candidate_url},
+                allow_redirects=True,
+            )
+            response.raise_for_status()
+
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with destination.open("wb") as file_handle:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        file_handle.write(chunk)
+            return
+        except requests.RequestException as exc:
+            last_error = exc
+
+    raise last_error
 
 
 def sync_employee_faces(api_url, target_root, timeout_seconds=20.0):
@@ -149,6 +178,7 @@ def sync_employee_faces(api_url, target_root, timeout_seconds=20.0):
     created_folders = 0
     removed_images = 0
     removed_folders = 0
+    skipped_images = 0
 
     for entry in entries:
         folder_path = target_root / entry["folder_name"]
@@ -165,8 +195,12 @@ def sync_employee_faces(api_url, target_root, timeout_seconds=20.0):
             expected_files.add(file_name)
             destination = folder_path / file_name
             if not destination.exists():
-                download_file(image["url"], destination, timeout_seconds)
-                downloaded_images += 1
+                try:
+                    download_file(image["url"], destination, timeout_seconds)
+                    downloaded_images += 1
+                except requests.RequestException as exc:
+                    skipped_images += 1
+                    print(f"[FACES] Skipped image download for {entry['folder_name']}: {image['url']} ({exc})")
 
         for existing_file in folder_path.iterdir():
             if not existing_file.is_file():
@@ -213,5 +247,6 @@ def sync_employee_faces(api_url, target_root, timeout_seconds=20.0):
         "downloaded_images": downloaded_images,
         "removed_images": removed_images,
         "removed_folders": removed_folders,
+        "skipped_images": skipped_images,
         "has_changes": bool(created_folders or downloaded_images or removed_images or removed_folders),
     }
