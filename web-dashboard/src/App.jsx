@@ -39,7 +39,9 @@ function ThreatCard({ detected, count }) {
       <div className="threat-card__body">
         <p className="threat-card__title">Menace détectée</p>
         <p className="threat-card__state">
-          {detected ? "Tentative d'usurpation détectée sur mobile ou écran" : "Aucune tentative d'usurpation détectée"}
+          {detected
+            ? "Tentative d'usurpation détectée sur mobile ou écran"
+            : "Aucune tentative d'usurpation détectée"}
         </p>
       </div>
       <div className="threat-card__count">{count || 0}</div>
@@ -48,7 +50,7 @@ function ThreatCard({ detected, count }) {
 }
 
 function AccessSwitch({ authorization, compact = false }) {
-  const requiredFrames = authorization?.required_frames ?? 2;
+  const requiredFrames = authorization?.required_frames ?? 3;
   const consecutiveFrames = authorization?.consecutive_frames ?? 0;
   const switchOn = Boolean(authorization?.switch_on);
   const knownPerson = Boolean(authorization?.known_person);
@@ -62,7 +64,7 @@ function AccessSwitch({ authorization, compact = false }) {
   } else if (!knownPerson && ppeComplete) {
     caption = "L'ÉPI est complet, mais la personne n'est pas encore reconnue.";
   } else if (knownPerson && ppeComplete) {
-    caption = "Les conditions d'autorisation sont remplies. Maintien sur 2 images consécutives.";
+    caption = "Les conditions d'autorisation sont remplies. Maintien sur 3 images consécutives.";
   }
 
   return (
@@ -83,7 +85,7 @@ function AccessSwitch({ authorization, compact = false }) {
 
       <div className="access-switch__stats">
         <div className="access-chip">
-          <span>Personne Connue</span>
+          <span>Personne connue</span>
           <strong>{knownPerson ? "Oui" : "Non"}</strong>
         </div>
         <div className="access-chip">
@@ -114,7 +116,7 @@ export default function App() {
     },
     error: null,
     authorization: {
-      required_frames: 2,
+      required_frames: 3,
       consecutive_frames: 0,
       eligible: false,
       known_person: false,
@@ -185,7 +187,7 @@ export default function App() {
               <p className="brand-row__tag">Contrôle visuel industriel</p>
             </div>
           </div>
-          <h1>Surveillance de la Protection des collaborateurs</h1>
+          <h1>Surveillance de la protection des collaborateurs</h1>
           <p className="hero-text">
             Flux caméra en direct avec vérification en temps réel du casque, du gilet, des gants et des lunettes.
           </p>
@@ -258,7 +260,7 @@ export default function App() {
               <strong>{status.models?.vest ? "Chargé" : "Absent"}</strong>
             </div>
             <div className="stack-row">
-              <span>Gants + Lunettes</span>
+              <span>Gants + lunettes</span>
               <strong>{status.models?.accessory ? "Chargé" : "Absent"}</strong>
             </div>
             <div className="stack-row">
@@ -284,19 +286,19 @@ export default function App() {
               {status.threat_detected
                 ? "Menace détectée sur mobile ou écran"
                 : authorization.switch_on
-                ? `Porte ouverte pour ${authorization.authorized_name}`
-                : status.primary_person
-                  ? status.primary_person.name
-                  : "Aucun collaborateur détecté"}
+                  ? `Porte ouverte pour ${authorization.authorized_name}`
+                  : status.primary_person
+                    ? status.primary_person.name
+                    : "Aucun collaborateur détecté"}
             </h4>
             <p>
               {status.threat_detected
                 ? `${status.threat_count || 0} tentative(s) d'usurpation détectée(s). L'accès reste bloqué jusqu'à la détection d'un vrai visage.`
                 : authorization.switch_on
-                ? `Autorisation validée après ${authorization.required_frames} images conformes.`
-                : status.primary_person
-                  ? `${status.primary_person.name_confidence ? `Correspondance du visage ${formatScore(status.primary_person.name_confidence)}.` : ""} Confiance de détection ${formatScore(status.primary_person.confidence)}`
-                  : status.error || "Placez-vous devant la caméra pour renseigner les cartes de protection."}
+                  ? `Autorisation validée après ${authorization.required_frames} images conformes.`
+                  : status.primary_person
+                    ? `${status.primary_person.name_confidence ? `Correspondance du visage ${formatScore(status.primary_person.name_confidence)}.` : ""} Confiance de détection ${formatScore(status.primary_person.confidence)}`
+                    : status.error || "Placez-vous devant la caméra pour renseigner les cartes de protection."}
             </p>
           </div>
         </div>
