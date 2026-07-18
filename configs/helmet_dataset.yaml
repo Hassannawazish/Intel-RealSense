@@ -1,0 +1,10 @@
+path: C:/Users/hassa/Desktop/Intel-RealSense/dataset/new dataset
+train: train/images
+val: test/images
+test: test/images
+
+nc: 3
+names:
+  - Helmet
+  - No Helmet
+  - Worker

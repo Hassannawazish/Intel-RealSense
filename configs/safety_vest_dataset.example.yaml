@@ -1,0 +1,19 @@
+# Copy this file to configs/safety_vest_dataset.yaml and replace the paths below with your dataset folders.
+# This dataset is expected to follow the Roboflow-style nested layout currently used in this repo:
+# safety_vest_dataset/
+#   train/
+#     train/
+#   valid/
+#     valid/
+#   test/
+#     test/
+
+path: C:/path/to/your_safety_vest_dataset
+train: train/train
+val: valid/valid
+test: test/test
+
+nc: 2
+names:
+  - Safety Vest
+  - NO-Safety Vest

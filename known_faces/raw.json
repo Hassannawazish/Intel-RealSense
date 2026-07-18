@@ -1,0 +1,387 @@
+{
+  "success": true,
+  "message": "Employees retrieved successfully",
+  "statusCode": 200,
+  "data": [
+    {
+      "id": "9ae46a3a-08e3-4464-a79e-8afad2bead49",
+      "companyId": "cec276a2-0939-4f32-a228-da6eaa9fca57",
+      "employeeNumber": "EMP-00001",
+      "title": 1,
+      "lastName": "Ahmed",
+      "firstName": "Rana Tauseef ",
+      "birthDate": "1997-06-26T00:00:00",
+      "nationalityId": "ffbe40ea-80d9-458d-93be-febdfafc7110",
+      "email": "ahmedtouseef90000@gmail.com",
+      "phone": "+33759558677",
+      "streetNo": "2",
+      "streetName": "Rue Sully Prudhome",
+      "city": "Le Creusot",
+      "postalCode": "71200",
+      "country": "France",
+      "managerEmployeeId": "9ae46a3a-08e3-4464-a79e-8afad2bead49",
+      "managerEmployee": {
+        "id": "9ae46a3a-08e3-4464-a79e-8afad2bead49",
+        "employeeNumber": "EMP-00001",
+        "firstName": "Rana Tauseef ",
+        "lastName": "Ahmed"
+      },
+      "post": {
+        "id": "e3c0ed74-07f0-4748-b16e-d4e557458000",
+        "companyId": "cec276a2-0939-4f32-a228-da6eaa9fca57",
+        "name": "Electrical Engineering",
+        "coeffcient": "P3",
+        "incomePerHour": 25.0,
+        "ipns": true,
+        "isActive": true,
+        "requiredSafetyEquipment": [
+          {
+            "id": "fa56fada-2963-47e7-979c-3fdff1cd82dd",
+            "itemId": "3a885e0f-bdbe-48b7-bd67-fd3ed62350de",
+            "name": "Safety shoes",
+            "isActive": true
+          },
+          {
+            "id": "5efce11a-047c-4b50-aa04-684536d13e21",
+            "itemId": "153c3abf-9ff6-426b-998e-a6c8879f2f96",
+            "name": "Safety Cap",
+            "isActive": true
+          },
+          {
+            "id": "2522b51f-47c6-4b7d-9df9-b89f58ab19f6",
+            "itemId": "8cdc9308-4be5-4abb-8d7a-1987a01dcac2",
+            "name": "Face Mask",
+            "isActive": true
+          },
+          {
+            "id": "b637adc9-d462-47cd-807a-cad7b8181502",
+            "itemId": "354c00b1-ab5d-43b8-bd3a-3ecbaefaf325",
+            "name": "Glasses",
+            "isActive": true
+          },
+          {
+            "id": "c04b597f-8fea-4168-9c6f-ece230d10bde",
+            "itemId": "862208a4-6420-4656-919e-9aae03bc2a5a",
+            "name": "Gloves",
+            "isActive": true
+          }
+        ]
+      },
+      "imageUrl": "http://scai-erp.tech/Employee_Photos/1053d93a-84be-4e7c-9454-4f3c203c2b13.jpg",
+      "employeeGalleryImages": [
+        {
+          "employeeGalleryImageId": "9b3f6f95-e1d3-427d-af9e-2d484a13fb99",
+          "employeeId": "9ae46a3a-08e3-4464-a79e-8afad2bead49",
+          "fileUrl": "http://scai-erp.tech/Employee_Gallery/9ae46a3a08e34464a79e8afad2bead49/044a19ae996c4dd4a33c6b6363422789.jpeg",
+          "originalFileName": "WhatsApp Image 2026-06-17 at 15.42.50 (1).jpeg",
+          "contentType": "image/jpeg",
+          "fileSize": 115574,
+          "sortOrder": 1,
+          "uploadedAt": "2026-06-17T13:46:19.9771428"
+        },
+        {
+          "employeeGalleryImageId": "5eff9bca-db52-4358-b9e9-40d49f600cec",
+          "employeeId": "9ae46a3a-08e3-4464-a79e-8afad2bead49",
+          "fileUrl": "http://scai-erp.tech/Employee_Gallery/9ae46a3a08e34464a79e8afad2bead49/8651c69b6e36486ba42394d3bed2287b.jpeg",
+          "originalFileName": "WhatsApp Image 2026-06-17 at 15.42.50 (2).jpeg",
+          "contentType": "image/jpeg",
+          "fileSize": 127110,
+          "sortOrder": 2,
+          "uploadedAt": "2026-06-17T13:46:19.9775298"
+        },
+        {
+          "employeeGalleryImageId": "950a4479-b70a-4704-8c33-c5324a6653b5",
+          "employeeId": "9ae46a3a-08e3-4464-a79e-8afad2bead49",
+          "fileUrl": "http://scai-erp.tech/Employee_Gallery/9ae46a3a08e34464a79e8afad2bead49/f366ab6cb9a4465685ef6c426ee22934.jpeg",
+          "originalFileName": "WhatsApp Image 2026-06-17 at 15.42.50 (3).jpeg",
+          "contentType": "image/jpeg",
+          "fileSize": 157489,
+          "sortOrder": 3,
+          "uploadedAt": "2026-06-17T13:46:19.9782738"
+        },
+        {
+          "employeeGalleryImageId": "4e5203a8-ea52-415d-8501-c27014799dc3",
+          "employeeId": "9ae46a3a-08e3-4464-a79e-8afad2bead49",
+          "fileUrl": "http://scai-erp.tech/Employee_Gallery/9ae46a3a08e34464a79e8afad2bead49/cb964015c88e4fd0b9103d0403e3a3c1.jpeg",
+          "originalFileName": "WhatsApp Image 2026-06-17 at 15.42.50.jpeg",
+          "contentType": "image/jpeg",
+          "fileSize": 60895,
+          "sortOrder": 4,
+          "uploadedAt": "2026-06-17T13:46:19.9787911"
+        }
+      ],
+      "isActive": true,
+      "createdAt": "2026-04-23T13:42:25.1293283",
+      "modifiedAt": "2026-06-17T13:41:56.8458574",
+      "nir": "197119921308596",
+      "specialCondition": true,
+      "specialConditionDescription": "",
+      "ipns": true
+    },
+    {
+      "id": "5a9d25bd-ee6e-49af-be44-340ad301468a",
+      "companyId": "cec276a2-0939-4f32-a228-da6eaa9fca57",
+      "employeeNumber": "EMP-00002",
+      "title": 1,
+      "lastName": "Khalil",
+      "firstName": "Ahmed",
+      "birthDate": "2026-06-19T00:00:00",
+      "nationalityId": "2ab4329f-bc39-4c23-a1d3-d1fd1be85d15",
+      "email": "ahmedtouseef90000@gmail.com",
+      "phone": "03174961231",
+      "streetNo": "2",
+      "streetName": "Rue de Berthelot",
+      "city": "Lahore",
+      "postalCode": "54000",
+      "country": "Pakistan",
+      "managerEmployeeId": "9ae46a3a-08e3-4464-a79e-8afad2bead49",
+      "managerEmployee": {
+        "id": "9ae46a3a-08e3-4464-a79e-8afad2bead49",
+        "employeeNumber": "EMP-00001",
+        "firstName": "Rana Tauseef ",
+        "lastName": "Ahmed"
+      },
+      "post": {
+        "id": "e3c0ed74-07f0-4748-b16e-d4e557458000",
+        "companyId": "cec276a2-0939-4f32-a228-da6eaa9fca57",
+        "name": "Electrical Engineering",
+        "coeffcient": "P3",
+        "incomePerHour": 25.0,
+        "ipns": true,
+        "isActive": true,
+        "requiredSafetyEquipment": [
+          {
+            "id": "fa56fada-2963-47e7-979c-3fdff1cd82dd",
+            "itemId": "3a885e0f-bdbe-48b7-bd67-fd3ed62350de",
+            "name": "Safety shoes",
+            "isActive": true
+          },
+          {
+            "id": "5efce11a-047c-4b50-aa04-684536d13e21",
+            "itemId": "153c3abf-9ff6-426b-998e-a6c8879f2f96",
+            "name": "Safety Cap",
+            "isActive": true
+          },
+          {
+            "id": "2522b51f-47c6-4b7d-9df9-b89f58ab19f6",
+            "itemId": "8cdc9308-4be5-4abb-8d7a-1987a01dcac2",
+            "name": "Face Mask",
+            "isActive": true
+          },
+          {
+            "id": "b637adc9-d462-47cd-807a-cad7b8181502",
+            "itemId": "354c00b1-ab5d-43b8-bd3a-3ecbaefaf325",
+            "name": "Glasses",
+            "isActive": true
+          },
+          {
+            "id": "c04b597f-8fea-4168-9c6f-ece230d10bde",
+            "itemId": "862208a4-6420-4656-919e-9aae03bc2a5a",
+            "name": "Gloves",
+            "isActive": true
+          }
+        ]
+      },
+      "employeeGalleryImages": [
+        {
+          "employeeGalleryImageId": "818b8583-7ea8-4144-8cf8-adf43ce3beb0",
+          "employeeId": "5a9d25bd-ee6e-49af-be44-340ad301468a",
+          "fileUrl": "http://scai-erp.tech/Employee_Gallery/5a9d25bdee6e49afbe44340ad301468a/f0ac97706db54e6f9d09ee5a8570d48a.jpeg",
+          "originalFileName": "WhatsApp Image 2026-06-17 at 15.40.37.jpeg",
+          "contentType": "image/jpeg",
+          "fileSize": 152323,
+          "sortOrder": 1,
+          "uploadedAt": "2026-06-17T13:42:51.192803"
+        },
+        {
+          "employeeGalleryImageId": "55db8cb9-1b2d-4549-a2e2-3aec1c2d6289",
+          "employeeId": "5a9d25bd-ee6e-49af-be44-340ad301468a",
+          "fileUrl": "http://scai-erp.tech/Employee_Gallery/5a9d25bdee6e49afbe44340ad301468a/f0b20a58ef114e89a21ed9e4c2ee9893.jpeg",
+          "originalFileName": "WhatsApp Image 2026-06-17 at 15.40.36 (2).jpeg",
+          "contentType": "image/jpeg",
+          "fileSize": 431869,
+          "sortOrder": 3,
+          "uploadedAt": "2026-06-17T13:42:51.1954611"
+        },
+        {
+          "employeeGalleryImageId": "c6415430-2fe7-4b55-911d-fbe4ca98937a",
+          "employeeId": "5a9d25bd-ee6e-49af-be44-340ad301468a",
+          "fileUrl": "http://scai-erp.tech/Employee_Gallery/5a9d25bdee6e49afbe44340ad301468a/773f94add78048c3b613ff205180f236.jpeg",
+          "originalFileName": "WhatsApp Image 2026-06-17 at 15.40.36 (1).jpeg",
+          "contentType": "image/jpeg",
+          "fileSize": 332627,
+          "sortOrder": 4,
+          "uploadedAt": "2026-06-17T13:42:51.1990134"
+        },
+        {
+          "employeeGalleryImageId": "ce51779d-ece4-4d46-9a91-7d63c7b89c0b",
+          "employeeId": "5a9d25bd-ee6e-49af-be44-340ad301468a",
+          "fileUrl": "http://scai-erp.tech/Employee_Gallery/5a9d25bdee6e49afbe44340ad301468a/b31ccb7217dc44dcbb6b2080f82201a8.jpeg",
+          "originalFileName": "WhatsApp Image 2026-06-17 at 15.40.36.jpeg",
+          "contentType": "image/jpeg",
+          "fileSize": 238096,
+          "sortOrder": 5,
+          "uploadedAt": "2026-06-17T13:42:51.201519"
+        }
+      ],
+      "isActive": true,
+      "createdAt": "2026-06-03T11:59:55.6237486",
+      "modifiedAt": "2026-06-17T13:42:53.3445958",
+      "nir": "",
+      "specialCondition": true,
+      "ipns": true
+    },
+    {
+      "id": "be62de6a-a616-4738-840c-26ce0d504d60",
+      "companyId": "cec276a2-0939-4f32-a228-da6eaa9fca57",
+      "employeeNumber": "EMP-00003",
+      "title": 1,
+      "lastName": "Nawazish",
+      "firstName": "Hassan ",
+      "birthDate": "2026-06-27T00:00:00",
+      "nationalityId": "31f0e389-25ff-48c9-97b7-dbbdc920a0cc",
+      "email": "ahmedtouseef90000@gmail.com",
+      "phone": "0759558677",
+      "streetNo": "21",
+      "streetName": "rue",
+      "city": "FRA-71-Chalon-sur-Sa\u00f4ne",
+      "postalCode": "71200",
+      "country": "France",
+      "managerEmployeeId": "9ae46a3a-08e3-4464-a79e-8afad2bead49",
+      "managerEmployee": {
+        "id": "9ae46a3a-08e3-4464-a79e-8afad2bead49",
+        "employeeNumber": "EMP-00001",
+        "firstName": "Rana Tauseef ",
+        "lastName": "Ahmed"
+      },
+      "post": {
+        "id": "e3c0ed74-07f0-4748-b16e-d4e557458000",
+        "companyId": "cec276a2-0939-4f32-a228-da6eaa9fca57",
+        "name": "Electrical Engineering",
+        "coeffcient": "P3",
+        "incomePerHour": 25.0,
+        "ipns": true,
+        "isActive": true,
+        "requiredSafetyEquipment": [
+          {
+            "id": "fa56fada-2963-47e7-979c-3fdff1cd82dd",
+            "itemId": "3a885e0f-bdbe-48b7-bd67-fd3ed62350de",
+            "name": "Safety shoes",
+            "isActive": true
+          },
+          {
+            "id": "5efce11a-047c-4b50-aa04-684536d13e21",
+            "itemId": "153c3abf-9ff6-426b-998e-a6c8879f2f96",
+            "name": "Safety Cap",
+            "isActive": true
+          },
+          {
+            "id": "2522b51f-47c6-4b7d-9df9-b89f58ab19f6",
+            "itemId": "8cdc9308-4be5-4abb-8d7a-1987a01dcac2",
+            "name": "Face Mask",
+            "isActive": true
+          },
+          {
+            "id": "b637adc9-d462-47cd-807a-cad7b8181502",
+            "itemId": "354c00b1-ab5d-43b8-bd3a-3ecbaefaf325",
+            "name": "Glasses",
+            "isActive": true
+          },
+          {
+            "id": "c04b597f-8fea-4168-9c6f-ece230d10bde",
+            "itemId": "862208a4-6420-4656-919e-9aae03bc2a5a",
+            "name": "Gloves",
+            "isActive": true
+          }
+        ]
+      },
+      "imageUrl": "http://scai-erp.tech/Employee_Photos/5962a4ec-53e9-4ec1-8da4-52e95ce2e76d.jpeg",
+      "employeeGalleryImages": [
+        {
+          "employeeGalleryImageId": "79b9089d-350f-42ad-92cf-f98758f7006c",
+          "employeeId": "be62de6a-a616-4738-840c-26ce0d504d60",
+          "fileUrl": "http://scai-erp.tech/Employee_Gallery/be62de6aa6164738840c26ce0d504d60/f882a14d4d224272b36aeb07db8a838a.jpg",
+          "originalFileName": "BJLX5034.JPG",
+          "contentType": "image/jpeg",
+          "fileSize": 488928,
+          "sortOrder": 3,
+          "uploadedAt": "2026-06-17T13:36:39.7544805"
+        },
+        {
+          "employeeGalleryImageId": "25d9887b-75a8-4f54-a964-984ad193d8b1",
+          "employeeId": "be62de6a-a616-4738-840c-26ce0d504d60",
+          "fileUrl": "http://scai-erp.tech/Employee_Gallery/be62de6aa6164738840c26ce0d504d60/57906942805c48628d088cbe161ff83d.jpg",
+          "originalFileName": "IMG_9900.JPG",
+          "contentType": "image/jpeg",
+          "fileSize": 111020,
+          "sortOrder": 4,
+          "uploadedAt": "2026-06-17T13:36:39.7549464"
+        },
+        {
+          "employeeGalleryImageId": "72a9ed94-be93-4567-af02-c1d22ee21e84",
+          "employeeId": "be62de6a-a616-4738-840c-26ce0d504d60",
+          "fileUrl": "http://scai-erp.tech/Employee_Gallery/be62de6aa6164738840c26ce0d504d60/4820eb57501840a0844b2698b86fc986.jpg",
+          "originalFileName": "IMG_E8484.JPG",
+          "contentType": "image/jpeg",
+          "fileSize": 258536,
+          "sortOrder": 5,
+          "uploadedAt": "2026-06-17T13:36:39.7555505"
+        },
+        {
+          "employeeGalleryImageId": "2c84ae67-769a-43c0-a1da-251dddc153b7",
+          "employeeId": "be62de6a-a616-4738-840c-26ce0d504d60",
+          "fileUrl": "http://scai-erp.tech/Employee_Gallery/be62de6aa6164738840c26ce0d504d60/41189b44b72d4b14a0ff0b85f138e705.jpg",
+          "originalFileName": "IMG_E8489.JPG",
+          "contentType": "image/jpeg",
+          "fileSize": 68985,
+          "sortOrder": 6,
+          "uploadedAt": "2026-06-17T13:36:39.7558993"
+        }
+      ],
+      "isActive": true,
+      "createdAt": "2026-06-09T21:06:39.9835401",
+      "modifiedAt": "2026-06-17T13:37:01.1923995",
+      "nir": "8585885",
+      "specialCondition": true,
+      "specialConditionDescription": "Testing",
+      "ipns": true
+    },
+    {
+      "id": "a6873104-c8e2-4f38-a16a-5ed26c28b74c",
+      "companyId": "cec276a2-0939-4f32-a228-da6eaa9fca57",
+      "employeeNumber": "EMP-00004",
+      "title": 1,
+      "lastName": "vinci",
+      "firstName": "ronaldo",
+      "birthDate": "2026-06-15T00:00:00",
+      "email": "hassannawazishrasool1@gmail.com",
+      "phone": "03246964405",
+      "streetNo": "",
+      "streetName": "H12 Sector, Islamabad",
+      "city": "",
+      "postalCode": "44000",
+      "country": "Pakistan",
+      "employeeGalleryImages": [
+        {
+          "employeeGalleryImageId": "815f24e8-8052-4dd8-8805-956e7101bf64",
+          "employeeId": "a6873104-c8e2-4f38-a16a-5ed26c28b74c",
+          "fileUrl": "http://scai-erp.tech/Employee_Gallery/a6873104c8e24f38a16a5ed26c28b74c/d801294d8abf4887a11df66dd82f565d.jpeg",
+          "originalFileName": "WhatsApp Image 2026-06-15 at 14.56.15.jpeg",
+          "contentType": "image/jpeg",
+          "fileSize": 246719,
+          "sortOrder": 1,
+          "uploadedAt": "2026-06-17T15:22:16.65703"
+        }
+      ],
+      "isActive": false,
+      "createdAt": "2026-06-17T15:22:16.4932201",
+      "modifiedAt": "2026-06-17T15:24:01.7192306",
+      "nir": "123",
+      "specialCondition": false,
+      "ipns": false
+    }
+  ],
+  "pageNumber": 1,
+  "pageSize": 20,
+  "totalCount": 4
+}

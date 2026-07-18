@@ -1,0 +1,16 @@
+{
+  "changelists": [
+    {
+      "name": "Default",
+      "files": [
+        "yolov5/",
+        "external_models/epoch30.pt",
+        "requirements_web_dashboard.txt",
+        "web_dashboard_server.py",
+        "arduino/door_led/door_led.ino",
+        "known_faces/raw.json"
+      ]
+    }
+  ],
+  "active": "Default"
+}
